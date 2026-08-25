@@ -1,58 +1,40 @@
-import { Eye, EyeOff } from "lucide-react";
-
 function FormInput({
   label,
-  name,
   type = "text",
+  name,
   value,
   onChange,
-  onBlur,
   placeholder,
   error,
-  icon: Icon,
-  showPassword,
-  onTogglePassword,
+  required = false,
 }) {
-  const isPassword = type === "password";
-
   return (
-    <div className="form-group">
-      <label htmlFor={name} className="form-label">
+    <div>
+      <label
+        htmlFor={name}
+        className="mb-2 block text-sm font-semibold text-slate-700"
+      >
         {label}
+        {required && <span className="ml-1 text-red-500">*</span>}
       </label>
 
-      <div className={`input-wrapper ${error ? "input-error" : ""}`}>
-        {Icon && <Icon className="input-icon" size={19} />}
+      <input
+        id={name}
+        name={name}
+        type={type}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className={`w-full rounded-xl border bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 ${
+          error
+            ? "border-red-400 focus:border-red-500"
+            : "border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+        }`}
+      />
 
-        <input
-          id={name}
-          name={name}
-          type={isPassword && showPassword ? "text" : type}
-          value={value}
-          onChange={onChange}
-          onBlur={onBlur}
-          placeholder={placeholder}
-          className="form-input"
-          autoComplete={name}
-        />
-
-        {isPassword && (
-          <button
-            type="button"
-            className="password-toggle"
-            onClick={onTogglePassword}
-            aria-label={showPassword ? "Hide password" : "Show password"}
-          >
-            {showPassword ? (
-              <EyeOff size={19} />
-            ) : (
-              <Eye size={19} />
-            )}
-          </button>
-        )}
-      </div>
-
-      {error && <p className="field-error">{error}</p>}
+      {error && (
+        <p className="mt-1.5 text-xs font-medium text-red-500">{error}</p>
+      )}
     </div>
   );
 }

@@ -1,35 +1,33 @@
-export async function loginCustomer(payload) {
-  /*
-   * Backend integration will be connected here.
-   *
-   * Expected payload:
-   *
-   * {
-   *   email: "customer@example.com",
-   *   password: "Password123"
-   * }
-   */
+const API_BASE_URL = "http://localhost:8080/api";
 
-  console.log("Login payload:", payload);
+export async function loginUser(credentials) {
+  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(credentials),
+  });
 
-  // Backend API call will be added when the endpoint is confirmed.
+  if (!response.ok) {
+    throw new Error("Unable to sign in.");
+  }
+
+  return response.json();
 }
 
-export async function signupCustomer(payload) {
-  /*
-   * Backend integration will be connected here.
-   *
-   * Expected payload:
-   *
-   * {
-   *   fullName: "John Doe",
-   *   email: "john@example.com",
-   *   phone: "+1234567890",
-   *   password: "Password123"
-   * }
-   */
+export async function signupUser(userData) {
+  const response = await fetch(`${API_BASE_URL}/auth/signup`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(userData),
+  });
 
-  console.log("Signup payload:", payload);
+  if (!response.ok) {
+    throw new Error("Unable to create account.");
+  }
 
-  // Backend API call will be added when the endpoint is confirmed.
+  return response.json();
 }

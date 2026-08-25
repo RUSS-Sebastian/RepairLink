@@ -1,10 +1,10 @@
-export function validateLoginForm(values) {
+export function validateLogin(values) {
   const errors = {};
 
   if (!values.email.trim()) {
     errors.email = "Email is required.";
   } else if (!/\S+@\S+\.\S+/.test(values.email)) {
-    errors.email = "Please enter a valid email address.";
+    errors.email = "Enter a valid email address.";
   }
 
   if (!values.password) {
@@ -14,23 +14,17 @@ export function validateLoginForm(values) {
   return errors;
 }
 
-export function validateSignupForm(values) {
+export function validateSignup(values) {
   const errors = {};
 
-  if (!values.fullName.trim()) {
-    errors.fullName = "Full name is required.";
-  } else if (values.fullName.trim().length < 2) {
-    errors.fullName = "Please enter your full name.";
+  if (!values.name.trim()) {
+    errors.name = "Full name is required.";
   }
 
   if (!values.email.trim()) {
     errors.email = "Email is required.";
   } else if (!/\S+@\S+\.\S+/.test(values.email)) {
-    errors.email = "Please enter a valid email address.";
-  }
-
-  if (!values.phone.trim()) {
-    errors.phone = "Phone number is required.";
+    errors.email = "Enter a valid email address.";
   }
 
   if (!values.password) {
@@ -39,9 +33,7 @@ export function validateSignupForm(values) {
     errors.password = "Password must contain at least 8 characters.";
   }
 
-  if (!values.confirmPassword) {
-    errors.confirmPassword = "Please confirm your password.";
-  } else if (values.password !== values.confirmPassword) {
+  if (values.password !== values.confirmPassword) {
     errors.confirmPassword = "Passwords do not match.";
   }
 

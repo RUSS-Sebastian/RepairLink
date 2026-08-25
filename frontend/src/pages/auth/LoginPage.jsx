@@ -1,122 +1,120 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import {
-  ArrowLeft,
-  Lock,
-  Mail,
-} from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowLeft, LockKeyhole } from "lucide-react";
 
 import AuthLayout from "../../layouts/AuthLayout";
 import FormInput from "../../components/forms/FormInput";
 import Button from "../../components/common/Button";
-import { validateLoginForm } from "../../validation/authValidation";
+import { ROUTES } from "../../constants/routes";
+import { validateLogin } from "../../validation/authValidation";
 
 function LoginPage() {
-  const [formData, setFormData] = useState({
+  const navigate = useNavigate();
+
+  const [values, setValues] = useState({
     email: "",
     password: "",
   });
 
   const [errors, setErrors] = useState({});
-  const [showPassword, setShowPassword] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
 
-    setFormData((previous) => ({
+    setValues((previous) => ({
       ...previous,
       [name]: value,
     }));
-
-    if (errors[name]) {
-      setErrors((previous) => ({
-        ...previous,
-        [name]: "",
-      }));
-    }
   };
 
   const handleSubmit = (event) => {
     event.preventDefault();
 
-    const validationErrors = validateLoginForm(formData);
+    const validationErrors = validateLogin(values);
 
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      return;
+    setErrors(validationErrors);
+
+    if (Object.keys(validationErrors).length === 0) {
+      // Temporary frontend-only behavior.
+      navigate(ROUTES.LANDING);
     }
-
-    const loginPayload = {
-      email: formData.email.trim(),
-      password: formData.password,
-    };
-
-    console.log("Login JSON sent to backend:", loginPayload);
-
-    setSubmitted(true);
   };
 
   return (
-    <AuthLayout
-      title="Welcome back"
-      subtitle="Sign in to your RepairLink customer account."
-    >
+    <AuthLayout>
+      <Link
+        to={ROUTES.LANDING}
+        className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-blue-600"
+      >
+        <ArrowLeft size={16} />
+        Back to RepairLink
+      </Link>
 
-      {submitted && (
-        <div className="success-message">
-          Login data is ready to be sent to the backend.
-          Open the browser Console to see the JSON payload.
+      <div className="mb-8">
+        <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+          <LockKeyhole size={23} />
         </div>
-      )}
 
-      <form onSubmit={handleSubmit} noValidate>
+        <h2 className="text-3xl font-bold text-slate-900">
+          Welcome back
+        </h2>
 
+        <p className="mt-2 text-slate-500">
+          Sign in to manage your vehicle service.
+        </p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-5">
         <FormInput
-          label="Email Address"
+          label="Email address"
           name="email"
           type="email"
-          value={formData.email}
+          placeholder="you@example.com"
+          value={values.email}
           onChange={handleChange}
-          placeholder="customer@example.com"
-          icon={Mail}
           error={errors.email}
+          required
         />
 
         <FormInput
           label="Password"
           name="password"
           type="password"
-          value={formData.password}
-          onChange={handleChange}
           placeholder="Enter your password"
-          icon={Lock}
+          value={values.password}
+          onChange={handleChange}
           error={errors.password}
-          showPassword={showPassword}
-          onTogglePassword={() =>
-            setShowPassword((previous) => !previous)
-          }
+          required
         />
 
-        <Button type="submit">
+        <div className="flex items-center justify-between text-sm">
+          <label className="flex items-center gap-2 text-slate-600">
+            <input type="checkbox" className="rounded border-slate-300" />
+            Remember me
+          </label>
+
+          <button
+            type="button"
+            className="font-semibold text-blue-600 hover:text-blue-700"
+          >
+            Forgot password?
+          </button>
+        </div>
+
+        <Button type="submit" className="w-full">
           Sign In
         </Button>
-
       </form>
 
-      <div className="auth-divider">
-        <span>New to RepairLink?</span>
-      </div>
-
-      <Link to="/signup" className="secondary-button">
-        Create Account
-      </Link>
-
-      <Link to="/landing" className="back-link">
-        <ArrowLeft size={16} />
-        Back to RepairLink
-      </Link>
-
+      <p className="mt-8 text-center text-sm text-slate-500">
+        Don't have an account?{" "}
+        <Link
+          to={ROUTES.SIGNUP}
+          className="font-semibold text-blue-600 hover:text-blue-700"
+        >
+          Create one
+        </Link>
+      </p>
     </AuthLayout>
   );
 }

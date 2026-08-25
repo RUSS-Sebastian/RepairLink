@@ -3,161 +3,168 @@ import { Link } from "react-router-dom";
 import {
   Menu,
   X,
-  Wrench,
+  CarFront,
+  ArrowRight,
 } from "lucide-react";
 
-function Navbar() {
-  const [isOpen, setIsOpen] = useState(false);
+import Button from "../common/Button";
+import { ROUTES } from "../../constants/routes";
 
-  const closeMenu = () => {
-    setIsOpen(false);
-  };
+function Navbar() {
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const closeMobile = () => setMobileOpen(false);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
-      <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
+    <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
+      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 lg:px-8">
 
         {/* Logo */}
         <Link
-          to="/landing"
-          onClick={closeMenu}
-          className="flex items-center gap-2"
+          to={ROUTES.LANDING}
+          onClick={closeMobile}
+          className="flex items-center gap-3"
         >
-          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-900 text-white">
-            <Wrench size={20} strokeWidth={2} />
-          </span>
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-600/20">
+            <CarFront size={22} strokeWidth={2.2} />
+          </div>
 
-          <span className="text-xl font-bold tracking-tight text-slate-900">
-            RepairLink
-          </span>
+          <div>
+            <span className="block text-lg font-bold tracking-tight text-slate-900">
+              Repair<span className="text-blue-600">Link</span>
+            </span>
+            <span className="hidden text-[10px] font-semibold uppercase tracking-widest text-slate-400 sm:block">
+              Smarter vehicle care
+            </span>
+          </div>
         </Link>
 
-        {/* Desktop Navigation */}
-        <div className="hidden items-center gap-7 lg:flex">
-
-          <Link
-            to="/landing"
-            className="text-sm font-medium text-slate-700 transition hover:text-slate-950"
+        {/* Desktop navigation */}
+        <nav className="hidden items-center gap-7 lg:flex">
+          <a
+            href="#home"
+            className="text-sm font-medium text-slate-600 transition hover:text-blue-600"
           >
             Home
-          </Link>
+          </a>
 
           <a
-            href="/landing#how-it-works"
-            className="text-sm font-medium text-slate-700 transition hover:text-slate-950"
+            href="#how-it-works"
+            className="text-sm font-medium text-slate-600 transition hover:text-blue-600"
           >
             How It Works
           </a>
 
           <a
-            href="/landing#services"
-            className="text-sm font-medium text-slate-700 transition hover:text-slate-950"
+            href="#services"
+            className="text-sm font-medium text-slate-600 transition hover:text-blue-600"
           >
             Services
           </a>
 
           <a
-            href="/landing#why-repairlink"
-            className="text-sm font-medium text-slate-700 transition hover:text-slate-950"
+            href="#why-repairlink"
+            className="text-sm font-medium text-slate-600 transition hover:text-blue-600"
           >
             Why RepairLink
           </a>
 
           <a
-            href="/landing#contact"
-            className="text-sm font-medium text-slate-700 transition hover:text-slate-950"
+            href="#contact"
+            className="text-sm font-medium text-slate-600 transition hover:text-blue-600"
           >
             Contact
           </a>
+        </nav>
 
-          <Link
-            to="/login"
-            className="text-sm font-semibold text-slate-700 transition hover:text-slate-950"
+        {/* Desktop buttons */}
+        <div className="hidden items-center gap-3 md:flex">
+          <Button
+            to={ROUTES.LOGIN}
+            variant="secondary"
+            className="px-4 py-2.5"
           >
             Login
-          </Link>
+          </Button>
 
-          <Link
-            to="/signup"
-            className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
+          <Button
+            to={ROUTES.SIGNUP}
+            className="px-4 py-2.5"
           >
             Sign Up
-          </Link>
+            <ArrowRight className="ml-2" size={16} />
+          </Button>
         </div>
 
-        {/* Mobile menu button */}
+        {/* Mobile button */}
         <button
-          type="button"
-          onClick={() => setIsOpen(!isOpen)}
-          className="rounded-lg p-2 text-slate-700 hover:bg-slate-100 lg:hidden"
-          aria-label={isOpen ? "Close navigation menu" : "Open navigation menu"}
+          onClick={() => setMobileOpen(!mobileOpen)}
+          className="rounded-lg p-2 text-slate-700 md:hidden"
+          aria-label="Toggle menu"
         >
-          {isOpen ? <X size={24} /> : <Menu size={24} />}
+          {mobileOpen ? <X size={25} /> : <Menu size={25} />}
         </button>
-      </nav>
+      </div>
 
-      {/* Mobile Navigation */}
-      {isOpen && (
-        <div className="border-t border-slate-200 bg-white lg:hidden">
-          <div className="mx-auto flex max-w-7xl flex-col px-6 py-4">
-
-            <Link
-              to="/landing"
-              onClick={closeMenu}
-              className="border-b border-slate-100 py-3 text-sm font-medium text-slate-700"
-            >
+      {/* Mobile navigation */}
+      {mobileOpen && (
+        <div className="border-t border-slate-200 bg-white px-5 py-5 md:hidden">
+          <nav className="flex flex-col gap-4">
+            <a href="#home" onClick={closeMobile} className="font-medium">
               Home
-            </Link>
+            </a>
 
             <a
-              href="/landing#how-it-works"
-              onClick={closeMenu}
-              className="border-b border-slate-100 py-3 text-sm font-medium text-slate-700"
+              href="#how-it-works"
+              onClick={closeMobile}
+              className="font-medium"
             >
               How It Works
             </a>
 
             <a
-              href="/landing#services"
-              onClick={closeMenu}
-              className="border-b border-slate-100 py-3 text-sm font-medium text-slate-700"
+              href="#services"
+              onClick={closeMobile}
+              className="font-medium"
             >
               Services
             </a>
 
             <a
-              href="/landing#why-repairlink"
-              onClick={closeMenu}
-              className="border-b border-slate-100 py-3 text-sm font-medium text-slate-700"
+              href="#why-repairlink"
+              onClick={closeMobile}
+              className="font-medium"
             >
               Why RepairLink
             </a>
 
             <a
-              href="/landing#contact"
-              onClick={closeMenu}
-              className="border-b border-slate-100 py-3 text-sm font-medium text-slate-700"
+              href="#contact"
+              onClick={closeMobile}
+              className="font-medium"
             >
               Contact
             </a>
 
-            <Link
-              to="/login"
-              onClick={closeMenu}
-              className="py-3 text-sm font-semibold text-slate-700"
-            >
-              Login
-            </Link>
+            <div className="flex gap-3 pt-3">
+              <Button
+                to={ROUTES.LOGIN}
+                variant="secondary"
+                className="flex-1"
+                onClick={closeMobile}
+              >
+                Login
+              </Button>
 
-            <Link
-              to="/signup"
-              onClick={closeMenu}
-              className="mt-2 rounded-lg bg-slate-900 px-5 py-3 text-center text-sm font-semibold text-white"
-            >
-              Sign Up
-            </Link>
-
-          </div>
+              <Button
+                to={ROUTES.SIGNUP}
+                className="flex-1"
+                onClick={closeMobile}
+              >
+                Sign Up
+              </Button>
+            </div>
+          </nav>
         </div>
       )}
     </header>

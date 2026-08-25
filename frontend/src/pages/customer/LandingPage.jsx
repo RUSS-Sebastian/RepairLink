@@ -1,926 +1,685 @@
 import {
   ArrowRight,
-  CalendarDays,
+  BadgeCheck,
+  BatteryCharging,
+  CalendarCheck,
   Car,
-  Check,
-  ChevronRight,
+  CheckCircle2,
+  Circle,
   ClipboardCheck,
-  Clock3,
   CreditCard,
   Gauge,
-  Hammer,
-  HeartHandshake,
-  Menu,
+  Headphones,
+  History,
   Search,
   ShieldCheck,
   Sparkles,
-  Truck,
   Wrench,
-  X,
   Zap,
 } from "lucide-react";
-import { useState } from "react";
-import { Link } from "react-router-dom";
+
+import Button from "../../components/common/Button";
+import SectionTitle from "../../components/common/SectionTitle";
+import { ROUTES } from "../../constants/routes";
+
+const services = [
+  {
+    title: "General Maintenance",
+    description: "Keep your vehicle running reliably with scheduled maintenance.",
+    icon: Wrench,
+  },
+  {
+    title: "Diagnostics",
+    description: "Identify vehicle issues with a structured digital diagnostic process.",
+    icon: Search,
+  },
+  {
+    title: "Brake Service",
+    description: "Monitor brake inspections, recommendations and repair progress.",
+    icon: Gauge,
+  },
+  {
+    title: "Engine Service",
+    description: "Manage engine-related repairs with clear service information.",
+    icon: Zap,
+  },
+  {
+    title: "Electrical Service",
+    description: "Track battery, electrical and vehicle system service.",
+    icon: BatteryCharging,
+  },
+  {
+    title: "Tire Service",
+    description: "Keep tire maintenance and service records organized.",
+    icon: Car,
+  },
+];
 
 const processSteps = [
   {
     number: "01",
     title: "Request Service",
-    description:
-      "Tell us what your vehicle needs and submit a digital service request.",
+    description: "Tell us what your vehicle needs and submit a service request.",
     icon: ClipboardCheck,
   },
   {
     number: "02",
     title: "Schedule",
-    description:
-      "Choose a convenient appointment time for your vehicle service.",
-    icon: CalendarDays,
+    description: "Choose a convenient appointment and keep everything organized.",
+    icon: CalendarCheck,
   },
   {
     number: "03",
-    title: "Vehicle Inspection",
-    description:
-      "Your vehicle is inspected and important findings are recorded digitally.",
+    title: "Inspect",
+    description: "Review inspection findings and understand what your vehicle needs.",
     icon: Search,
   },
   {
     number: "04",
-    title: "Approve Estimate",
-    description:
-      "Review the recommended work and estimate before repairs begin.",
-    icon: CreditCard,
+    title: "Approve",
+    description: "Review your digital estimate before repair work begins.",
+    icon: CheckCircle2,
   },
   {
     number: "05",
     title: "Track Repair",
-    description:
-      "Follow repair progress and stay informed as your vehicle is serviced.",
+    description: "Follow your vehicle's repair progress from one dashboard.",
     icon: Gauge,
   },
   {
     number: "06",
     title: "Pay & Collect",
-    description:
-      "Complete payment and arrange convenient pickup or delivery.",
-    icon: Truck,
-  },
-];
-
-const services = [
-  {
-    title: "General Maintenance",
-    description:
-      "Routine maintenance to help keep your vehicle dependable.",
-    icon: Wrench,
-  },
-  {
-    title: "Diagnostics",
-    description:
-      "Identify vehicle problems with a clear digital diagnostic process.",
-    icon: Search,
-  },
-  {
-    title: "Brake Service",
-    description:
-      "Professional brake inspection, maintenance and repair.",
-    icon: ShieldCheck,
-  },
-  {
-    title: "Engine Service",
-    description:
-      "Support for engine inspection, maintenance and repair needs.",
-    icon: Hammer,
-  },
-  {
-    title: "Electrical Service",
-    description:
-      "Digital service management for electrical and electronic issues.",
-    icon: Zap,
-  },
-  {
-    title: "Tire Service",
-    description:
-      "Keep your vehicle ready for the road with convenient tire service.",
-    icon: Car,
+    description: "Complete payment and prepare for pickup or delivery.",
+    icon: CreditCard,
   },
 ];
 
 const benefits = [
   {
-    title: "Transparent Repair Process",
-    description:
-      "Keep service information, estimates and repair progress organized in one place.",
+    title: "Transparent repair process",
+    description: "Know where your vehicle is in the service journey.",
     icon: ShieldCheck,
   },
   {
-    title: "Digital Estimates",
-    description:
-      "Review service recommendations and estimated costs digitally.",
+    title: "Digital estimates",
+    description: "Review repair information before approving additional work.",
     icon: ClipboardCheck,
   },
   {
-    title: "Real-Time Repair Updates",
-    description:
-      "Stay informed about important changes throughout the repair process.",
-    icon: Clock3,
+    title: "Real-time updates",
+    description: "Stay informed as your repair progresses.",
+    icon: Zap,
   },
   {
-    title: "Service History",
-    description:
-      "Keep a convenient digital record of your vehicle service journey.",
-    icon: Gauge,
+    title: "Service history",
+    description: "Keep your vehicle maintenance history accessible.",
+    icon: History,
   },
   {
-    title: "Secure Payments",
-    description:
-      "A streamlined digital experience for completing service payments.",
+    title: "Secure payments",
+    description: "A streamlined experience for completing service payments.",
     icon: CreditCard,
   },
   {
-    title: "Convenient Pickup & Delivery",
-    description:
-      "Make the final step easier with convenient vehicle collection options.",
-    icon: Truck,
+    title: "Convenient support",
+    description: "Keep communication and service information connected.",
+    icon: Headphones,
   },
 ];
 
 function LandingPage() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const closeMobileMenu = () => {
-    setMobileMenuOpen(false);
-  };
-
   return (
-    <div className="min-h-screen bg-white text-slate-900">
-      {/* ==================== NAVBAR ==================== */}
-      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6 lg:px-8">
-          <Link
-            to="/landing"
-            className="flex items-center gap-3"
-            onClick={closeMobileMenu}
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-600/20">
-              <Wrench size={21} strokeWidth={2.4} />
+    <div className="overflow-hidden">
+
+      {/* HERO */}
+      <section
+        id="home"
+        className="relative bg-slate-950 text-white"
+      >
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(37,99,235,0.25),transparent_35%)]" />
+
+        <div className="relative mx-auto grid max-w-7xl items-center gap-14 px-5 py-20 lg:grid-cols-2 lg:px-8 lg:py-28">
+
+          <div>
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-500/10 px-4 py-2 text-sm font-medium text-blue-300">
+              <Sparkles size={16} />
+              Smarter vehicle service management
             </div>
 
-            <div>
-              <span className="block text-xl font-bold tracking-tight text-slate-950">
-                Repair<span className="text-blue-600">Link</span>
+            <h1 className="max-w-3xl text-4xl font-bold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
+              Take control of your vehicle's
+              <span className="text-blue-400"> repair journey.</span>
+            </h1>
+
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-400">
+              RepairLink helps customers manage vehicle repairs and
+              maintenance digitally — from service requests and estimates
+              to repair progress, payment and vehicle history.
+            </p>
+
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Button to={ROUTES.SIGNUP}>
+                Get Started
+                <ArrowRight className="ml-2" size={18} />
+              </Button>
+
+              <Button
+                to={ROUTES.LOGIN}
+                variant="secondary"
+                className="border-slate-700 bg-slate-900 text-white hover:border-blue-400 hover:bg-slate-800"
+              >
+                Sign In
+              </Button>
+            </div>
+
+            <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm text-slate-400">
+              <span className="flex items-center gap-2">
+                <BadgeCheck size={17} className="text-blue-400" />
+                Digital service records
               </span>
-              <span className="hidden text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 sm:block">
-                Vehicle Service Platform
+
+              <span className="flex items-center gap-2">
+                <BadgeCheck size={17} className="text-blue-400" />
+                Clear repair updates
+              </span>
+
+              <span className="flex items-center gap-2">
+                <BadgeCheck size={17} className="text-blue-400" />
+                Customer-focused
               </span>
             </div>
-          </Link>
-
-          {/* Desktop navigation */}
-          <nav className="hidden items-center gap-8 lg:flex">
-            <a
-              href="#home"
-              className="text-sm font-semibold text-slate-700 transition hover:text-blue-600"
-            >
-              Home
-            </a>
-
-            <a
-              href="#how-it-works"
-              className="text-sm font-semibold text-slate-700 transition hover:text-blue-600"
-            >
-              How It Works
-            </a>
-
-            <a
-              href="#services"
-              className="text-sm font-semibold text-slate-700 transition hover:text-blue-600"
-            >
-              Services
-            </a>
-
-            <a
-              href="#why-repairlink"
-              className="text-sm font-semibold text-slate-700 transition hover:text-blue-600"
-            >
-              Why RepairLink
-            </a>
-
-            <a
-              href="#contact"
-              className="text-sm font-semibold text-slate-700 transition hover:text-blue-600"
-            >
-              Contact
-            </a>
-          </nav>
-
-          <div className="hidden items-center gap-3 sm:flex">
-            <Link
-              to="/login"
-              className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-100 hover:text-blue-600"
-            >
-              Login
-            </Link>
-
-            <Link
-              to="/signup"
-              className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700"
-            >
-              Sign Up
-            </Link>
           </div>
 
-          {/* Mobile menu button */}
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-700 transition hover:bg-slate-50 lg:hidden"
-            aria-label="Toggle navigation menu"
-          >
-            {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
-          </button>
-        </div>
+          {/* Hero dashboard */}
+          <div className="relative">
+            <div className="absolute -inset-8 rounded-full bg-blue-600/10 blur-3xl" />
 
-        {/* Mobile navigation */}
-        {mobileMenuOpen && (
-          <div className="border-t border-slate-200 bg-white px-6 py-5 lg:hidden">
-            <nav className="flex flex-col gap-1">
-              <a
-                href="#home"
-                onClick={closeMobileMenu}
-                className="rounded-lg px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50"
-              >
+            <div className="relative rounded-3xl border border-white/10 bg-white/5 p-3 shadow-2xl backdrop-blur">
+
+              <div className="rounded-2xl bg-white p-5 text-slate-900">
+
+                <div className="flex items-center justify-between border-b border-slate-100 pb-5">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Vehicle service
+                    </p>
+                    <h3 className="mt-1 text-lg font-bold">
+                      Toyota Camry
+                    </h3>
+                  </div>
+
+                  <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-600">
+                    In Progress
+                  </span>
+                </div>
+
+                <div className="mt-6 space-y-5">
+
+                  <div className="flex gap-4">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
+                      <CheckCircle2 size={18} />
+                    </div>
+
+                    <div>
+                      <p className="font-semibold">Service requested</p>
+                      <p className="text-sm text-slate-500">
+                        Vehicle received by service team
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="ml-4 h-5 border-l-2 border-dashed border-blue-200" />
+
+                  <div className="flex gap-4">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
+                      <CheckCircle2 size={18} />
+                    </div>
+
+                    <div>
+                      <p className="font-semibold">Inspection completed</p>
+                      <p className="text-sm text-slate-500">
+                        Findings are ready for review
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="ml-4 h-5 border-l-2 border-dashed border-slate-200" />
+
+                  <div className="flex gap-4">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-blue-500 bg-blue-50 text-blue-600">
+                      <Wrench size={17} />
+                    </div>
+
+                    <div>
+                      <p className="font-semibold">Repair in progress</p>
+                      <p className="text-sm text-slate-500">
+                        Estimated completion: Today
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-7 rounded-xl bg-slate-50 p-4">
+                  <div className="mb-2 flex justify-between text-xs font-semibold">
+                    <span>Repair progress</span>
+                    <span className="text-blue-600">68%</span>
+                  </div>
+
+                  <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+                    <div className="h-full w-[68%] rounded-full bg-blue-600" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      {/* STATS */}
+      <section className="border-b border-slate-100 bg-white">
+        <div className="mx-auto grid max-w-7xl grid-cols-1 divide-y divide-slate-100 px-5 py-8 sm:grid-cols-3 sm:divide-x sm:divide-y-0 lg:px-8">
+
+          <div className="px-5 py-4 text-center">
+            <p className="text-3xl font-bold text-slate-900">10K+</p>
+            <p className="mt-1 text-sm text-slate-500">Vehicles Serviced</p>
+            <p className="mt-1 text-xs text-slate-400">Prototype value</p>
+          </div>
+
+          <div className="px-5 py-4 text-center">
+            <p className="text-3xl font-bold text-slate-900">95%</p>
+            <p className="mt-1 text-sm text-slate-500">Customer Satisfaction</p>
+            <p className="mt-1 text-xs text-slate-400">Prototype value</p>
+          </div>
+
+          <div className="px-5 py-4 text-center">
+            <p className="text-3xl font-bold text-slate-900">24/7</p>
+            <p className="mt-1 text-sm text-slate-500">Repair Updates</p>
+            <p className="mt-1 text-xs text-slate-400">Prototype value</p>
+          </div>
+
+        </div>
+      </section>
+
+      {/* HOW IT WORKS */}
+      <section
+        id="how-it-works"
+        className="bg-slate-50 px-5 py-20 lg:px-8 lg:py-28"
+      >
+        <div className="mx-auto max-w-7xl">
+
+          <SectionTitle
+            eyebrow="How it works"
+            title="Your entire repair journey, connected."
+            description="RepairLink brings the important steps of vehicle service into one organized digital experience."
+          />
+
+          <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {processSteps.map((step) => {
+              const Icon = step.icon;
+
+              return (
+                <div
+                  key={step.number}
+                  className="group rounded-2xl border border-slate-200 bg-white p-6 transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl hover:shadow-slate-200/50"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                      <Icon size={21} />
+                    </div>
+
+                    <span className="text-sm font-bold text-slate-300">
+                      {step.number}
+                    </span>
+                  </div>
+
+                  <h3 className="mt-6 text-lg font-bold text-slate-900">
+                    {step.title}
+                  </h3>
+
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    {step.description}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* SERVICES */}
+      <section
+        id="services"
+        className="bg-white px-5 py-20 lg:px-8 lg:py-28"
+      >
+        <div className="mx-auto max-w-7xl">
+
+          <SectionTitle
+            eyebrow="Services"
+            title="Everything your vehicle needs."
+            description="A digital experience designed around the most important vehicle maintenance and repair services."
+          />
+
+          <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {services.map((service) => {
+              const Icon = service.icon;
+
+              return (
+                <div
+                  key={service.title}
+                  className="rounded-2xl border border-slate-200 p-6 transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+                    <Icon size={23} />
+                  </div>
+
+                  <h3 className="mt-5 text-lg font-bold">
+                    {service.title}
+                  </h3>
+
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    {service.description}
+                  </p>
+
+                  <span className="mt-5 inline-flex items-center text-sm font-semibold text-blue-600">
+                    Available through RepairLink
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* WHY REPAIRLINK */}
+      <section
+        id="why-repairlink"
+        className="bg-slate-950 px-5 py-20 text-white lg:px-8 lg:py-28"
+      >
+        <div className="mx-auto max-w-7xl">
+
+          <SectionTitle
+            eyebrow="Why RepairLink"
+            title="Built around a better service experience."
+            description="The goal is simple: make vehicle repair easier to understand, easier to track and easier to manage."
+          />
+
+          <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {benefits.map((benefit) => {
+              const Icon = benefit.icon;
+
+              return (
+                <div
+                  key={benefit.title}
+                  className="rounded-2xl border border-white/10 bg-white/5 p-6 transition hover:bg-white/10"
+                >
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400">
+                    <Icon size={21} />
+                  </div>
+
+                  <h3 className="mt-5 font-bold">
+                    {benefit.title}
+                  </h3>
+
+                  <p className="mt-2 text-sm leading-6 text-slate-400">
+                    {benefit.description}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* TRACKING */}
+      <section className="bg-slate-50 px-5 py-20 lg:px-8 lg:py-28">
+        <div className="mx-auto grid max-w-7xl items-center gap-14 lg:grid-cols-2">
+
+          <div>
+            <SectionTitle
+              centered={false}
+              eyebrow="Repair tracking"
+              title="Always know what's happening with your vehicle."
+              description="The RepairLink experience is designed to make repair progress easy to understand at every stage."
+            />
+
+            <div className="mt-8 space-y-5">
+
+              <div className="flex gap-4">
+                <CheckCircle2 className="mt-1 text-blue-600" />
+                <div>
+                  <h4 className="font-bold">Service Requested</h4>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Your service request has been received.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <CheckCircle2 className="mt-1 text-blue-600" />
+                <div>
+                  <h4 className="font-bold">Inspection</h4>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Vehicle inspection and findings are complete.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="mt-1 h-6 w-6 rounded-full border-2 border-blue-600 bg-blue-50" />
+                <div>
+                  <h4 className="font-bold">Estimate</h4>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Review and approve the proposed repair work.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 opacity-50">
+                <Circle className="mt-1" />
+                <div>
+                  <h4 className="font-bold">Repair</h4>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Approved repair work begins.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 opacity-50">
+                <Circle className="mt-1" />
+                <div>
+                  <h4 className="font-bold">Ready for Pickup</h4>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Your vehicle is ready to collect.
+                  </p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
+            <div className="rounded-2xl bg-slate-950 p-6 text-white">
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-slate-400">
+                    Current service
+                  </p>
+
+                  <h3 className="mt-1 text-xl font-bold">
+                    Brake Service
+                  </h3>
+                </div>
+
+                <div className="rounded-xl bg-blue-500/10 p-3 text-blue-400">
+                  <Wrench size={23} />
+                </div>
+              </div>
+
+              <div className="mt-8">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">
+                    Overall progress
+                  </span>
+
+                  <span className="font-bold text-blue-400">
+                    60%
+                  </span>
+                </div>
+
+                <div className="mt-3 h-3 rounded-full bg-slate-800">
+                  <div className="h-full w-[60%] rounded-full bg-blue-500" />
+                </div>
+              </div>
+
+              <div className="mt-8 grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-white/5 p-4">
+                  <p className="text-xs text-slate-500">
+                    Estimate
+                  </p>
+
+                  <p className="mt-1 font-bold">
+                    Ready
+                  </p>
+                </div>
+
+                <div className="rounded-xl bg-white/5 p-4">
+                  <p className="text-xs text-slate-500">
+                    Status
+                  </p>
+
+                  <p className="mt-1 font-bold text-blue-400">
+                    In Progress
+                  </p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section
+        id="contact"
+        className="px-5 py-20 lg:px-8 lg:py-28"
+      >
+        <div className="mx-auto max-w-5xl overflow-hidden rounded-3xl bg-blue-600 px-6 py-14 text-center text-white shadow-2xl shadow-blue-600/20 sm:px-12">
+
+          <p className="text-sm font-bold uppercase tracking-[0.2em] text-blue-100">
+            Start with RepairLink
+          </p>
+
+          <h2 className="mt-4 text-3xl font-bold sm:text-4xl">
+            Ready to take control of your vehicle service?
+          </h2>
+
+          <p className="mx-auto mt-5 max-w-2xl text-blue-100">
+            Create your RepairLink account and experience a more organized
+            way to manage vehicle repairs and maintenance.
+          </p>
+
+          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+            <Button
+              to={ROUTES.SIGNUP}
+              variant="light"
+            >
+              Create Account
+              <ArrowRight className="ml-2" size={18} />
+            </Button>
+
+            <Button
+              to={ROUTES.LOGIN}
+              variant="secondary"
+              className="border-blue-400 bg-blue-700 text-white hover:bg-blue-800"
+            >
+              Sign In
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* FOOTER */}
+      <footer className="border-t border-slate-200 bg-white">
+
+        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-14 md:grid-cols-4 lg:px-8">
+
+          <div className="md:col-span-2">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
+                <Car size={20} />
+              </div>
+
+              <span className="text-xl font-bold">
+                Repair<span className="text-blue-600">Link</span>
+              </span>
+            </div>
+
+            <p className="mt-4 max-w-md text-sm leading-6 text-slate-500">
+              A digital vehicle service platform designed to make repairs,
+              maintenance and service communication easier to manage.
+            </p>
+          </div>
+
+          <div>
+            <h4 className="font-bold text-slate-900">
+              Navigation
+            </h4>
+
+            <div className="mt-4 space-y-3 text-sm text-slate-500">
+              <a href="#home" className="block hover:text-blue-600">
                 Home
               </a>
 
-              <a
-                href="#how-it-works"
-                onClick={closeMobileMenu}
-                className="rounded-lg px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50"
-              >
+              <a href="#how-it-works" className="block hover:text-blue-600">
                 How It Works
               </a>
 
-              <a
-                href="#services"
-                onClick={closeMobileMenu}
-                className="rounded-lg px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50"
-              >
+              <a href="#services" className="block hover:text-blue-600">
                 Services
               </a>
 
-              <a
-                href="#why-repairlink"
-                onClick={closeMobileMenu}
-                className="rounded-lg px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50"
-              >
+              <a href="#why-repairlink" className="block hover:text-blue-600">
                 Why RepairLink
               </a>
+            </div>
+          </div>
 
-              <a
-                href="#contact"
-                onClick={closeMobileMenu}
-                className="rounded-lg px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50"
-              >
+          <div>
+            <h4 className="font-bold text-slate-900">
+              Company
+            </h4>
+
+            <div className="mt-4 space-y-3 text-sm text-slate-500">
+              <a href="#contact" className="block hover:text-blue-600">
                 Contact
               </a>
 
-              <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4">
-                <Link
-                  to="/login"
-                  onClick={closeMobileMenu}
-                  className="rounded-xl border border-slate-200 px-4 py-3 text-center text-sm font-bold text-slate-700"
-                >
-                  Login
-                </Link>
-
-                <Link
-                  to="/signup"
-                  onClick={closeMobileMenu}
-                  className="rounded-xl bg-blue-600 px-4 py-3 text-center text-sm font-bold text-white"
-                >
-                  Sign Up
-                </Link>
-              </div>
-            </nav>
-          </div>
-        )}
-      </header>
-
-      <main>
-        {/* ==================== HERO ==================== */}
-        <section
-          id="home"
-          className="relative overflow-hidden bg-slate-950"
-        >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(37,99,235,0.25),transparent_35%)]" />
-          <div className="absolute -right-40 top-20 h-96 w-96 rounded-full bg-blue-600/10 blur-3xl" />
-
-          <div className="relative mx-auto grid max-w-7xl gap-14 px-6 py-20 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:px-8 lg:py-28">
-            <div>
-              <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-500/10 px-4 py-2 text-sm font-semibold text-blue-300">
-                <Sparkles size={16} />
-                Digital vehicle service management
-              </div>
-
-              <h1 className="max-w-3xl text-5xl font-bold leading-[1.05] tracking-tight text-white sm:text-6xl lg:text-7xl">
-                Smarter vehicle service,
-                <span className="block text-blue-400">
-                  connected through RepairLink.
-                </span>
-              </h1>
-
-              <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-300 sm:text-xl">
-                RepairLink helps customers manage vehicle repair and
-                maintenance digitally — from service requests and inspections
-                to estimates, repair progress, payment and collection.
-              </p>
-
-              <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-                <Link
-                  to="/signup"
-                  className="group inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3.5 font-bold text-white shadow-xl shadow-blue-900/30 transition hover:bg-blue-500"
-                >
-                  Get Started
-                  <ArrowRight
-                    size={18}
-                    className="transition group-hover:translate-x-1"
-                  />
-                </Link>
-
-                <Link
-                  to="/login"
-                  className="inline-flex items-center justify-center rounded-xl border border-slate-700 bg-white/5 px-6 py-3.5 font-bold text-white transition hover:bg-white/10"
-                >
-                  Sign In
-                </Link>
-              </div>
-
-              <div className="mt-9 flex flex-wrap gap-x-7 gap-y-3 text-sm text-slate-400">
-                <div className="flex items-center gap-2">
-                  <Check size={16} className="text-emerald-400" />
-                  Digital service records
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Check size={16} className="text-emerald-400" />
-                  Clear repair updates
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Check size={16} className="text-emerald-400" />
-                  Customer-focused workflow
-                </div>
-              </div>
-            </div>
-
-            {/* Hero visual */}
-            <div className="relative">
-              <div className="absolute -inset-5 rounded-[2rem] bg-blue-500/10 blur-2xl" />
-
-              <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur">
-                <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-5">
-                  <div className="flex items-center justify-between border-b border-white/10 pb-5">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                        Vehicle service
-                      </p>
-                      <h2 className="mt-1 text-lg font-bold text-white">
-                        Service Overview
-                      </h2>
-                    </div>
-
-                    <div className="rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-400">
-                      In Progress
-                    </div>
-                  </div>
-
-                  <div className="mt-6 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-900 p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-blue-100">
-                          Current service
-                        </p>
-                        <p className="mt-1 text-2xl font-bold text-white">
-                          Vehicle Inspection
-                        </p>
-                      </div>
-
-                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10">
-                        <Car size={30} className="text-white" />
-                      </div>
-                    </div>
-
-                    <div className="mt-8 h-2 overflow-hidden rounded-full bg-white/15">
-                      <div className="h-full w-[68%] rounded-full bg-white" />
-                    </div>
-
-                    <div className="mt-3 flex justify-between text-xs text-blue-100">
-                      <span>Service progress</span>
-                      <span>68%</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 grid grid-cols-2 gap-3">
-                    <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                      <p className="text-xs text-slate-500">Vehicle</p>
-                      <p className="mt-1 font-semibold text-white">
-                        Customer Vehicle
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                      <p className="text-xs text-slate-500">Status</p>
-                      <p className="mt-1 font-semibold text-emerald-400">
-                        On schedule
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
-                      <Clock3 size={19} />
-                    </div>
-
-                    <div>
-                      <p className="text-sm font-semibold text-white">
-                        Latest update
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        Inspection information updated recently
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ==================== HOW IT WORKS ==================== */}
-        <section
-          id="how-it-works"
-          className="scroll-mt-20 bg-slate-50 py-24"
-        >
-          <div className="mx-auto max-w-7xl px-6 lg:px-8">
-            <div className="mx-auto max-w-2xl text-center">
-              <p className="text-sm font-bold uppercase tracking-[0.2em] text-blue-600">
-                How It Works
-              </p>
-
-              <h2 className="mt-3 text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
-                A simpler way to manage vehicle service
-              </h2>
-
-              <p className="mt-5 text-lg leading-8 text-slate-600">
-                RepairLink connects the important steps of the customer
-                service journey into one organized digital experience.
-              </p>
-            </div>
-
-            <div className="mt-16 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-              {processSteps.map((step) => {
-                const Icon = step.icon;
-
-                return (
-                  <div
-                    key={step.number}
-                    className="group rounded-2xl border border-slate-200 bg-white p-7 shadow-sm transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl hover:shadow-slate-200/60"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600 transition group-hover:bg-blue-600 group-hover:text-white">
-                        <Icon size={22} />
-                      </div>
-
-                      <span className="text-sm font-bold text-slate-300">
-                        {step.number}
-                      </span>
-                    </div>
-
-                    <h3 className="mt-6 text-xl font-bold text-slate-950">
-                      {step.title}
-                    </h3>
-
-                    <p className="mt-3 leading-7 text-slate-600">
-                      {step.description}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-
-        {/* ==================== SERVICES ==================== */}
-        <section id="services" className="scroll-mt-20 bg-white py-24">
-          <div className="mx-auto max-w-7xl px-6 lg:px-8">
-            <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
-              <div className="max-w-2xl">
-                <p className="text-sm font-bold uppercase tracking-[0.2em] text-blue-600">
-                  Services
-                </p>
-
-                <h2 className="mt-3 text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
-                  Service support for every stage of vehicle ownership
-                </h2>
-              </div>
-
-              <p className="max-w-md text-slate-600">
-                Explore the types of vehicle service RepairLink is designed to
-                help customers manage.
-              </p>
-            </div>
-
-            <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {services.map((service) => {
-                const Icon = service.icon;
-
-                return (
-                  <div
-                    key={service.title}
-                    className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl"
-                  >
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-900">
-                      <Icon size={22} />
-                    </div>
-
-                    <h3 className="mt-6 text-xl font-bold text-slate-950">
-                      {service.title}
-                    </h3>
-
-                    <p className="mt-3 leading-7 text-slate-600">
-                      {service.description}
-                    </p>
-
-                    <div className="mt-5 flex items-center gap-1 text-sm font-bold text-blue-600">
-                      Service category
-                      <ChevronRight size={16} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-
-        {/* ==================== WHY REPAIRLINK ==================== */}
-        <section
-          id="why-repairlink"
-          className="scroll-mt-20 bg-slate-950 py-24"
-        >
-          <div className="mx-auto max-w-7xl px-6 lg:px-8">
-            <div className="grid gap-14 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
-              <div>
-                <p className="text-sm font-bold uppercase tracking-[0.2em] text-blue-400">
-                  Why RepairLink
-                </p>
-
-                <h2 className="mt-3 text-4xl font-bold tracking-tight text-white sm:text-5xl">
-                  Built around a clearer customer experience.
-                </h2>
-
-                <p className="mt-6 text-lg leading-8 text-slate-400">
-                  Vehicle repair can involve many conversations, documents and
-                  decisions. RepairLink brings the process together so
-                  customers can understand what is happening with their
-                  vehicle.
-                </p>
-
-                <div className="mt-8 flex items-center gap-3 text-sm font-semibold text-blue-300">
-                  <HeartHandshake size={19} />
-                  Designed for connected vehicle service
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                {benefits.map((benefit) => {
-                  const Icon = benefit.icon;
-
-                  return (
-                    <div
-                      key={benefit.title}
-                      className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 transition hover:bg-white/[0.07]"
-                    >
-                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400">
-                        <Icon size={20} />
-                      </div>
-
-                      <h3 className="mt-5 font-bold text-white">
-                        {benefit.title}
-                      </h3>
-
-                      <p className="mt-2 text-sm leading-6 text-slate-400">
-                        {benefit.description}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ==================== REPAIR TRACKING ==================== */}
-        <section className="bg-white py-24">
-          <div className="mx-auto max-w-7xl px-6 lg:px-8">
-            <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-slate-50 p-6 sm:p-10 lg:p-14">
-              <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
-                <div>
-                  <p className="text-sm font-bold uppercase tracking-[0.2em] text-blue-600">
-                    Repair Tracking Preview
-                  </p>
-
-                  <h2 className="mt-3 text-4xl font-bold tracking-tight text-slate-950">
-                    Know where your vehicle stands.
-                  </h2>
-
-                  <p className="mt-5 text-lg leading-8 text-slate-600">
-                    Customers can follow a simple visual representation of
-                    their vehicle's service journey from request through
-                    completion.
-                  </p>
-
-                  <Link
-                    to="/signup"
-                    className="mt-8 inline-flex items-center gap-2 font-bold text-blue-600 hover:text-blue-700"
-                  >
-                    Start your service journey
-                    <ArrowRight size={18} />
-                  </Link>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-5">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                        Current service
-                      </p>
-                      <h3 className="mt-1 text-lg font-bold text-slate-950">
-                        Repair Progress
-                      </h3>
-                    </div>
-
-                    <div className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-600">
-                      Demo Preview
-                    </div>
-                  </div>
-
-                  <div className="mt-7 space-y-0">
-                    {[
-                      {
-                        title: "Service Requested",
-                        status: "complete",
-                      },
-                      {
-                        title: "Inspection",
-                        status: "complete",
-                      },
-                      {
-                        title: "Estimate",
-                        status: "current",
-                      },
-                      {
-                        title: "Repair",
-                        status: "upcoming",
-                      },
-                      {
-                        title: "Ready for Pickup",
-                        status: "upcoming",
-                      },
-                    ].map((item, index, items) => (
-                      <div
-                        key={item.title}
-                        className="flex items-start gap-4"
-                      >
-                        <div className="flex flex-col items-center">
-                          <div
-                            className={`flex h-10 w-10 items-center justify-center rounded-full ${
-                              item.status === "complete"
-                                ? "bg-emerald-500 text-white"
-                                : item.status === "current"
-                                  ? "bg-blue-600 text-white ring-4 ring-blue-100"
-                                  : "bg-slate-100 text-slate-400"
-                            }`}
-                          >
-                            {item.status === "complete" ? (
-                              <Check size={18} strokeWidth={3} />
-                            ) : item.status === "current" ? (
-                              <span className="h-2.5 w-2.5 rounded-full bg-white" />
-                            ) : (
-                              <span className="h-2 w-2 rounded-full bg-slate-300" />
-                            )}
-                          </div>
-
-                          {index < items.length - 1 && (
-                            <div
-                              className={`h-10 w-px ${
-                                item.status === "complete"
-                                  ? "bg-emerald-200"
-                                  : "bg-slate-200"
-                              }`}
-                            />
-                          )}
-                        </div>
-
-                        <div className="pt-2">
-                          <p
-                            className={`font-semibold ${
-                              item.status === "upcoming"
-                                ? "text-slate-400"
-                                : "text-slate-950"
-                            }`}
-                          >
-                            {item.title}
-                          </p>
-
-                          <p className="mt-1 text-xs text-slate-400">
-                            {item.status === "complete"
-                              ? "Completed"
-                              : item.status === "current"
-                                ? "Currently in progress"
-                                : "Coming next"}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ==================== STATISTICS ==================== */}
-        <section className="border-y border-slate-200 bg-slate-50 py-20">
-          <div className="mx-auto max-w-7xl px-6 lg:px-8">
-            <div className="mx-auto max-w-2xl text-center">
-              <p className="text-sm font-bold uppercase tracking-[0.2em] text-blue-600">
-                Platform Preview
-              </p>
-
-              <p className="mt-3 text-sm text-slate-500">
-                Prototype values shown for interface demonstration only.
-              </p>
-            </div>
-
-            <div className="mt-12 grid gap-6 sm:grid-cols-3">
-              <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-                <p className="text-4xl font-bold text-slate-950">10K+</p>
-                <p className="mt-2 font-medium text-slate-500">
-                  Vehicles Serviced
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-                <p className="text-4xl font-bold text-slate-950">95%</p>
-                <p className="mt-2 font-medium text-slate-500">
-                  Customer Satisfaction
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-                <p className="text-4xl font-bold text-slate-950">24/7</p>
-                <p className="mt-2 font-medium text-slate-500">
-                  Repair Updates
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ==================== FINAL CTA ==================== */}
-        <section className="bg-white py-24">
-          <div className="mx-auto max-w-5xl px-6 lg:px-8">
-            <div className="relative overflow-hidden rounded-[2rem] bg-blue-600 px-8 py-16 text-center shadow-2xl shadow-blue-600/20 sm:px-14">
-              <div className="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
-              <div className="absolute -bottom-24 -right-20 h-72 w-72 rounded-full bg-slate-950/10 blur-3xl" />
-
-              <div className="relative">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-white">
-                  <Wrench size={26} />
-                </div>
-
-                <h2 className="mx-auto mt-7 max-w-3xl text-4xl font-bold tracking-tight text-white sm:text-5xl">
-                  Ready to take control of your vehicle service?
-                </h2>
-
-                <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-blue-100">
-                  Create your RepairLink account and experience a more
-                  connected way to manage vehicle repair and maintenance.
-                </p>
-
-                <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-                  <Link
-                    to="/signup"
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 font-bold text-blue-600 transition hover:bg-blue-50"
-                  >
-                    Create Account
-                    <ArrowRight size={18} />
-                  </Link>
-
-                  <Link
-                    to="/login"
-                    className="inline-flex items-center justify-center rounded-xl border border-white/30 bg-white/10 px-6 py-3.5 font-bold text-white transition hover:bg-white/20"
-                  >
-                    Sign In
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-      </main>
-
-      {/* ==================== FOOTER ==================== */}
-      <footer
-        id="contact"
-        className="scroll-mt-20 border-t border-slate-200 bg-slate-950 text-white"
-      >
-        <div className="mx-auto max-w-7xl px-6 py-14 lg:px-8">
-          <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-4">
-            <div className="lg:col-span-2">
-              <Link to="/landing" className="inline-flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600">
-                  <Wrench size={21} />
-                </div>
-
-                <span className="text-xl font-bold">
-                  Repair<span className="text-blue-400">Link</span>
-                </span>
-              </Link>
-
-              <p className="mt-5 max-w-md leading-7 text-slate-400">
-                A digital vehicle service platform designed to connect
-                customers with a clearer, more organized repair experience.
-              </p>
-            </div>
-
-            <div>
-              <h3 className="font-bold text-white">Navigation</h3>
-
-              <div className="mt-5 flex flex-col gap-3 text-sm text-slate-400">
-                <a href="#home" className="hover:text-white">
-                  Home
-                </a>
-
-                <a href="#how-it-works" className="hover:text-white">
-                  How It Works
-                </a>
-
-                <a href="#services" className="hover:text-white">
-                  Services
-                </a>
-
-                <a href="#why-repairlink" className="hover:text-white">
-                  Why RepairLink
-                </a>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="font-bold text-white">Account</h3>
-
-              <div className="mt-5 flex flex-col gap-3 text-sm text-slate-400">
-                <Link to="/login" className="hover:text-white">
-                  Login
-                </Link>
-
-                <Link to="/signup" className="hover:text-white">
-                  Sign Up
-                </Link>
-
-                <a href="#services" className="hover:text-white">
-                  Services
-                </a>
-
-                <a href="#contact" className="hover:text-white">
-                  Contact
-                </a>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-12 flex flex-col gap-5 border-t border-white/10 pt-7 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-            <p>© 2026 RepairLink. All rights reserved.</p>
-
-            <div className="flex gap-6">
-              <button
-                type="button"
-                className="transition hover:text-white"
-              >
+              <button className="block hover:text-blue-600">
                 Privacy
               </button>
 
-              <button
-                type="button"
-                className="transition hover:text-white"
-              >
+              <button className="block hover:text-blue-600">
                 Terms
               </button>
             </div>
           </div>
         </div>
+
+        <div className="border-t border-slate-100">
+          <div className="mx-auto flex max-w-7xl flex-col justify-between gap-3 px-5 py-5 text-xs text-slate-400 sm:flex-row lg:px-8">
+            <p>
+              © 2026 RepairLink. Prototype interface.
+            </p>
+
+            <p>
+              Built for digital vehicle service management.
+            </p>
+          </div>
+        </div>
       </footer>
+
     </div>
   );
 }
