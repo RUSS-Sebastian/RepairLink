@@ -25,22 +25,26 @@ import { ROUTES } from "../../constants/routes";
 const services = [
   {
     title: "General Maintenance",
-    description: "Keep your vehicle running reliably with scheduled maintenance.",
+    description:
+      "Keep your vehicle running reliably with scheduled maintenance.",
     icon: Wrench,
   },
   {
     title: "Diagnostics",
-    description: "Identify vehicle issues with a structured digital diagnostic process.",
+    description:
+      "Identify vehicle issues with a structured digital diagnostic process.",
     icon: Search,
   },
   {
     title: "Brake Service",
-    description: "Monitor brake inspections, recommendations and repair progress.",
+    description:
+      "Monitor brake inspections, recommendations and repair progress.",
     icon: Gauge,
   },
   {
     title: "Engine Service",
-    description: "Manage engine-related repairs with clear service information.",
+    description:
+      "Manage engine-related repairs with clear service information.",
     icon: Zap,
   },
   {
@@ -59,19 +63,22 @@ const processSteps = [
   {
     number: "01",
     title: "Request Service",
-    description: "Tell us what your vehicle needs and submit a service request.",
+    description:
+      "Tell us what your vehicle needs and submit a service request.",
     icon: ClipboardCheck,
   },
   {
     number: "02",
     title: "Schedule",
-    description: "Choose a convenient appointment and keep everything organized.",
+    description:
+      "Choose a convenient appointment and keep everything organized.",
     icon: CalendarCheck,
   },
   {
     number: "03",
     title: "Inspect",
-    description: "Review inspection findings and understand what your vehicle needs.",
+    description:
+      "Review inspection findings and understand what your vehicle needs.",
     icon: Search,
   },
   {
@@ -130,16 +137,11 @@ const benefits = [
 function LandingPage() {
   return (
     <div className="overflow-hidden">
-
       {/* HERO */}
-      <section
-        id="home"
-        className="relative bg-slate-950 text-white"
-      >
+      <section id="home" className="relative bg-slate-950 text-white">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(37,99,235,0.25),transparent_35%)]" />
 
         <div className="relative mx-auto grid max-w-7xl items-center gap-14 px-5 py-20 lg:grid-cols-2 lg:px-8 lg:py-28">
-
           <div>
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-500/10 px-4 py-2 text-sm font-medium text-blue-300">
               <Sparkles size={16} />
@@ -152,9 +154,9 @@ function LandingPage() {
             </h1>
 
             <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-400">
-              RepairLink helps customers manage vehicle repairs and
-              maintenance digitally — from service requests and estimates
-              to repair progress, payment and vehicle history.
+              RepairLink helps customers manage vehicle repairs and maintenance
+              digitally — from service requests and estimates to repair
+              progress, payment and vehicle history.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -163,11 +165,7 @@ function LandingPage() {
                 <ArrowRight className="ml-2" size={18} />
               </Button>
 
-              <Button
-                to={ROUTES.LOGIN}
-                variant="secondary"
-                className="border-slate-700 bg-slate-900 text-white hover:border-blue-400 hover:bg-slate-800"
-              >
+              <Button to={ROUTES.LOGIN} variant="login">
                 Sign In
               </Button>
             </div>
@@ -195,17 +193,13 @@ function LandingPage() {
             <div className="absolute -inset-8 rounded-full bg-blue-600/10 blur-3xl" />
 
             <div className="relative rounded-3xl border border-white/10 bg-white/5 p-3 shadow-2xl backdrop-blur">
-
               <div className="rounded-2xl bg-white p-5 text-slate-900">
-
                 <div className="flex items-center justify-between border-b border-slate-100 pb-5">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                       Vehicle service
                     </p>
-                    <h3 className="mt-1 text-lg font-bold">
-                      Toyota Camry
-                    </h3>
+                    <h3 className="mt-1 text-lg font-bold">Toyota Camry</h3>
                   </div>
 
                   <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-600">
@@ -214,7 +208,6 @@ function LandingPage() {
                 </div>
 
                 <div className="mt-6 space-y-5">
-
                   <div className="flex gap-4">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
                       <CheckCircle2 size={18} />
@@ -272,14 +265,12 @@ function LandingPage() {
               </div>
             </div>
           </div>
-
         </div>
       </section>
 
       {/* STATS */}
       <section className="border-b border-slate-100 bg-white">
         <div className="mx-auto grid max-w-7xl grid-cols-1 divide-y divide-slate-100 px-5 py-8 sm:grid-cols-3 sm:divide-x sm:divide-y-0 lg:px-8">
-
           <div className="px-5 py-4 text-center">
             <p className="text-3xl font-bold text-slate-900">10K+</p>
             <p className="mt-1 text-sm text-slate-500">Vehicles Serviced</p>
@@ -297,7 +288,6 @@ function LandingPage() {
             <p className="mt-1 text-sm text-slate-500">Repair Updates</p>
             <p className="mt-1 text-xs text-slate-400">Prototype value</p>
           </div>
-
         </div>
       </section>
 
@@ -307,7 +297,6 @@ function LandingPage() {
         className="bg-slate-50 px-5 py-20 lg:px-8 lg:py-28"
       >
         <div className="mx-auto max-w-7xl">
-
           <SectionTitle
             eyebrow="How it works"
             title="Your entire repair journey, connected."
@@ -321,7 +310,7 @@ function LandingPage() {
               return (
                 <div
                   key={step.number}
-                  className="group rounded-2xl border border-slate-200 bg-white p-6 transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl hover:shadow-slate-200/50"
+                  className="group rounded-2xl border border-slate-200 bg-slate-50 p-6 transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl hover:shadow-slate-200/50"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
@@ -348,12 +337,8 @@ function LandingPage() {
       </section>
 
       {/* SERVICES */}
-      <section
-        id="services"
-        className="bg-white px-5 py-20 lg:px-8 lg:py-28"
-      >
+      <section id="services" className="bg-white px-5 py-20 lg:px-8 lg:py-28">
         <div className="mx-auto max-w-7xl">
-
           <SectionTitle
             eyebrow="Services"
             title="Everything your vehicle needs."
@@ -373,9 +358,7 @@ function LandingPage() {
                     <Icon size={23} />
                   </div>
 
-                  <h3 className="mt-5 text-lg font-bold">
-                    {service.title}
-                  </h3>
+                  <h3 className="mt-5 text-lg font-bold">{service.title}</h3>
 
                   <p className="mt-2 text-sm leading-6 text-slate-500">
                     {service.description}
@@ -397,11 +380,12 @@ function LandingPage() {
         className="bg-slate-950 px-5 py-20 text-white lg:px-8 lg:py-28"
       >
         <div className="mx-auto max-w-7xl">
-
           <SectionTitle
             eyebrow="Why RepairLink"
             title="Built around a better service experience."
             description="The goal is simple: make vehicle repair easier to understand, easier to track and easier to manage."
+            titleClassName="text-blue-600"
+            descriptionClassName="text-white"
           />
 
           <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
@@ -417,9 +401,7 @@ function LandingPage() {
                     <Icon size={21} />
                   </div>
 
-                  <h3 className="mt-5 font-bold">
-                    {benefit.title}
-                  </h3>
+                  <h3 className="mt-5 font-bold">{benefit.title}</h3>
 
                   <p className="mt-2 text-sm leading-6 text-slate-400">
                     {benefit.description}
@@ -434,7 +416,6 @@ function LandingPage() {
       {/* TRACKING */}
       <section className="bg-slate-50 px-5 py-20 lg:px-8 lg:py-28">
         <div className="mx-auto grid max-w-7xl items-center gap-14 lg:grid-cols-2">
-
           <div>
             <SectionTitle
               centered={false}
@@ -444,7 +425,6 @@ function LandingPage() {
             />
 
             <div className="mt-8 space-y-5">
-
               <div className="flex gap-4">
                 <CheckCircle2 className="mt-1 text-blue-600" />
                 <div>
@@ -494,22 +474,18 @@ function LandingPage() {
                   </p>
                 </div>
               </div>
-
             </div>
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
             <div className="rounded-2xl bg-slate-950 p-6 text-white">
-
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-wider text-slate-400">
                     Current service
                   </p>
 
-                  <h3 className="mt-1 text-xl font-bold">
-                    Brake Service
-                  </h3>
+                  <h3 className="mt-1 text-xl font-bold">Brake Service</h3>
                 </div>
 
                 <div className="rounded-xl bg-blue-500/10 p-3 text-blue-400">
@@ -519,13 +495,9 @@ function LandingPage() {
 
               <div className="mt-8">
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-400">
-                    Overall progress
-                  </span>
+                  <span className="text-slate-400">Overall progress</span>
 
-                  <span className="font-bold text-blue-400">
-                    60%
-                  </span>
+                  <span className="font-bold text-blue-400">60%</span>
                 </div>
 
                 <div className="mt-3 h-3 rounded-full bg-slate-800">
@@ -535,38 +507,25 @@ function LandingPage() {
 
               <div className="mt-8 grid grid-cols-2 gap-3">
                 <div className="rounded-xl bg-white/5 p-4">
-                  <p className="text-xs text-slate-500">
-                    Estimate
-                  </p>
+                  <p className="text-xs text-slate-500">Estimate</p>
 
-                  <p className="mt-1 font-bold">
-                    Ready
-                  </p>
+                  <p className="mt-1 font-bold">Ready</p>
                 </div>
 
                 <div className="rounded-xl bg-white/5 p-4">
-                  <p className="text-xs text-slate-500">
-                    Status
-                  </p>
+                  <p className="text-xs text-slate-500">Status</p>
 
-                  <p className="mt-1 font-bold text-blue-400">
-                    In Progress
-                  </p>
+                  <p className="mt-1 font-bold text-blue-400">In Progress</p>
                 </div>
               </div>
-
             </div>
           </div>
         </div>
       </section>
 
       {/* CTA */}
-      <section
-        id="contact"
-        className="px-5 py-20 lg:px-8 lg:py-28"
-      >
+      <section id="contact" className="px-5 py-20 lg:px-8 lg:py-28">
         <div className="mx-auto max-w-5xl overflow-hidden rounded-3xl bg-blue-600 px-6 py-14 text-center text-white shadow-2xl shadow-blue-600/20 sm:px-12">
-
           <p className="text-sm font-bold uppercase tracking-[0.2em] text-blue-100">
             Start with RepairLink
           </p>
@@ -576,23 +535,19 @@ function LandingPage() {
           </h2>
 
           <p className="mx-auto mt-5 max-w-2xl text-blue-100">
-            Create your RepairLink account and experience a more organized
-            way to manage vehicle repairs and maintenance.
+            Create your RepairLink account and experience a more organized way
+            to manage vehicle repairs and maintenance.
           </p>
 
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-            <Button
-              to={ROUTES.SIGNUP}
-              variant="light"
-            >
+            <Button to={ROUTES.SIGNUP} variant="light">
               Create Account
               <ArrowRight className="ml-2" size={18} />
             </Button>
-
             <Button
               to={ROUTES.LOGIN}
               variant="secondary"
-              className="border-blue-400 bg-blue-700 text-white hover:bg-blue-800"
+              className="!bg-slate-900 !text-white !border-slate-900 hover:!bg-white hover:!text-slate-900 hover:!border-white"
             >
               Sign In
             </Button>
@@ -601,85 +556,93 @@ function LandingPage() {
       </section>
 
       {/* FOOTER */}
-      <footer className="border-t border-slate-200 bg-white">
-
+      {/* FOOTER */}
+      <footer className="border-t border-slate-800 bg-slate-950 text-white">
         <div className="mx-auto grid max-w-7xl gap-10 px-5 py-14 md:grid-cols-4 lg:px-8">
-
           <div className="md:col-span-2">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
-                <Car size={20} />
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 shadow-lg shadow-blue-600/20">
+                <img
+                  src="/images/repairlink-logo.png"
+                  alt="RepairLink"
+                  className="h-7 w-7 object-contain"
+                />
               </div>
 
               <span className="text-xl font-bold">
-                Repair<span className="text-blue-600">Link</span>
+                Repair<span className="text-blue-500">Link</span>
               </span>
             </div>
 
-            <p className="mt-4 max-w-md text-sm leading-6 text-slate-500">
+            <p className="mt-4 max-w-md text-sm leading-6 text-slate-300">
               A digital vehicle service platform designed to make repairs,
               maintenance and service communication easier to manage.
             </p>
           </div>
 
           <div>
-            <h4 className="font-bold text-slate-900">
-              Navigation
-            </h4>
+            <h4 className="font-bold text-white">Navigation</h4>
 
-            <div className="mt-4 space-y-3 text-sm text-slate-500">
-              <a href="#home" className="block hover:text-blue-600">
+            <div className="mt-4 space-y-3 text-sm text-slate-400">
+              <a
+                href="#home"
+                className="block transition-colors hover:text-blue-400"
+              >
                 Home
               </a>
 
-              <a href="#how-it-works" className="block hover:text-blue-600">
+              <a
+                href="#how-it-works"
+                className="block transition-colors hover:text-blue-400"
+              >
                 How It Works
               </a>
 
-              <a href="#services" className="block hover:text-blue-600">
+              <a
+                href="#services"
+                className="block transition-colors hover:text-blue-400"
+              >
                 Services
               </a>
 
-              <a href="#why-repairlink" className="block hover:text-blue-600">
+              <a
+                href="#why-repairlink"
+                className="block transition-colors hover:text-blue-400"
+              >
                 Why RepairLink
               </a>
             </div>
           </div>
 
           <div>
-            <h4 className="font-bold text-slate-900">
-              Company
-            </h4>
+            <h4 className="font-bold text-white">Company</h4>
 
-            <div className="mt-4 space-y-3 text-sm text-slate-500">
-              <a href="#contact" className="block hover:text-blue-600">
+            <div className="mt-4 space-y-3 text-sm text-slate-400">
+              <a
+                href="#contact"
+                className="block transition-colors hover:text-blue-400"
+              >
                 Contact
               </a>
 
-              <button className="block hover:text-blue-600">
+              <button className="block transition-colors hover:text-blue-400">
                 Privacy
               </button>
 
-              <button className="block hover:text-blue-600">
+              <button className="block transition-colors hover:text-blue-400">
                 Terms
               </button>
             </div>
           </div>
         </div>
 
-        <div className="border-t border-slate-100">
+        <div className="border-t border-slate-800">
           <div className="mx-auto flex max-w-7xl flex-col justify-between gap-3 px-5 py-5 text-xs text-slate-400 sm:flex-row lg:px-8">
-            <p>
-              © 2026 RepairLink. Prototype interface.
-            </p>
-
-            <p>
-              Built for digital vehicle service management.
-            </p>
+            <p>© 2026 RepairLink.</p>
+            <p>Built for digital vehicle service management.</p>
           </div>
         </div>
       </footer>
-
     </div>
   );
 }

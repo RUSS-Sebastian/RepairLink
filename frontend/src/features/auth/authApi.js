@@ -1,5 +1,19 @@
 const API_BASE_URL = "http://localhost:8080/api";
 
+async function parseApiError(response) {
+  try {
+    const payload = await response.json();
+    return (
+      payload?.message ||
+      payload?.error ||
+      payload?.errorCode ||
+      "Request failed."
+    );
+  } catch {
+    return "Request failed.";
+  }
+}
+
 export async function loginUser(credentials) {
   const response = await fetch(`${API_BASE_URL}/auth/login`, {
     method: "POST",
@@ -10,7 +24,8 @@ export async function loginUser(credentials) {
   });
 
   if (!response.ok) {
-    throw new Error("Unable to sign in.");
+    const message = await parseApiError(response);
+    throw new Error(message);
   }
 
   return response.json();
@@ -26,7 +41,8 @@ export async function signupUser(userData) {
   });
 
   if (!response.ok) {
-    throw new Error("Unable to create account.");
+    const message = await parseApiError(response);
+    throw new Error(message);
   }
 
   return response.json();

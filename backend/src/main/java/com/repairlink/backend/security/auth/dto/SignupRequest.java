@@ -18,8 +18,8 @@ public record SignupRequest(
 
         @NotBlank(message = "Phone is required.")
         @Pattern(
-                regexp = "^\\+[1-9]\\d{7,14}$",
-                message = "Phone must use international format, for example +959123456789."
+                regexp = "^\\+\\d{1,3}\\d{10}$",
+                message = "Phone must include a valid country code and exactly 10 digits after it."
         )
         String phone,
 

@@ -4,6 +4,7 @@ import com.repairlink.backend.common.enums.AccountStatus;
 import com.repairlink.backend.common.enums.RoleCode;
 import com.repairlink.backend.common.exception.EmailAlreadyExistsException;
 import com.repairlink.backend.common.exception.InvalidCredentialsException;
+import com.repairlink.backend.common.exception.PhoneAlreadyExistsException;
 import com.repairlink.backend.security.auth.dto.LoginRequest;
 import com.repairlink.backend.security.auth.dto.SignupRequest;
 import com.repairlink.backend.security.auth.dto.UserResponse;
@@ -49,9 +50,14 @@ public class AuthService {
     @Transactional
     public UserResponse signup(SignupRequest request) {
         String normalizedEmail = normalizeEmail(request.email());
+        String normalizedPhone = request.phone().trim();
 
         if (userAccountRepository.existsByEmailIgnoreCase(normalizedEmail)) {
             throw new EmailAlreadyExistsException();
+        }
+
+        if (userAccountRepository.existsByPhone(normalizedPhone)) {
+            throw new PhoneAlreadyExistsException();
         }
 
         Role customerRole = roleRepository

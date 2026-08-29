@@ -1,12 +1,28 @@
 import { useState } from "react";
+
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, UserPlus } from "lucide-react";
+
+import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  LoaderCircle,
+  UserPlus,
+} from "lucide-react";
 
 import AuthLayout from "../../layouts/AuthLayout";
+
 import FormInput from "../../components/forms/FormInput";
+
 import Button from "../../components/common/Button";
+
 import { ROUTES } from "../../constants/routes";
+
 import { validateSignup } from "../../validation/authValidation";
+
+import PhoneInput from "../../components/forms/PhoneInput";
+
+import { signupUser } from "../../features/auth/authApi";
 
 function SignupPage() {
   const navigate = useNavigate();
@@ -14,11 +30,16 @@ function SignupPage() {
   const [values, setValues] = useState({
     name: "",
     email: "",
+    phone: "",
+    countryCode: "+95",
     password: "",
     confirmPassword: "",
   });
 
   const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState("");
+  const [submitSuccess, setSubmitSuccess] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -27,18 +48,56 @@ function SignupPage() {
       ...previous,
       [name]: value,
     }));
+
+    if (errors[name]) {
+      setErrors((previous) => ({
+        ...previous,
+        [name]: "",
+      }));
+    }
+
+    if (submitError) {
+      setSubmitError("");
+    }
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
+    setSubmitError("");
+    setSubmitSuccess("");
 
     const validationErrors = validateSignup(values);
-
     setErrors(validationErrors);
 
-    if (Object.keys(validationErrors).length === 0) {
-      // Temporary frontend-only behavior.
-      navigate(ROUTES.LOGIN);
+    if (Object.keys(validationErrors).length > 0) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const signupData = {
+        fullName: values.name.trim(),
+        email: values.email.trim(),
+        phone: `${values.countryCode}${values.phone}`,
+        password: values.password,
+      };
+
+      await signupUser(signupData);
+
+      setSubmitSuccess(
+        "Account created successfully. Redirecting you to sign in...",
+      );
+
+      setTimeout(() => {
+        navigate(ROUTES.LOGIN);
+      }, 1200);
+    } catch (error) {
+      setSubmitError(
+        error.message || "Unable to create account. Please try again.",
+      );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -46,7 +105,18 @@ function SignupPage() {
     <AuthLayout>
       <Link
         to={ROUTES.LANDING}
-        className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-blue-600"
+        onClick={(event) => {
+          if (isSubmitting) {
+            event.preventDefault();
+          }
+        }}
+        aria-disabled={isSubmitting}
+        tabIndex={isSubmitting ? -1 : 0}
+        className={`mb-8 inline-flex items-center gap-2 text-sm font-medium ${
+          isSubmitting
+            ? "pointer-events-none cursor-not-allowed text-slate-400"
+            : "text-slate-500 hover:text-blue-600"
+        }`}
       >
         <ArrowLeft size={16} />
         Back to RepairLink
@@ -65,6 +135,20 @@ function SignupPage() {
           Start managing your vehicle service digitally.
         </p>
       </div>
+
+      {submitError && (
+        <div className="mb-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <AlertCircle size={18} className="mt-0.5 shrink-0" />
+          <span>{submitError}</span>
+        </div>
+      )}
+
+      {submitSuccess && (
+        <div className="mb-4 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          <CheckCircle2 size={18} className="mt-0.5 shrink-0" />
+          <span>{submitSuccess}</span>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <FormInput
@@ -85,6 +169,22 @@ function SignupPage() {
           value={values.email}
           onChange={handleChange}
           error={errors.email}
+          required
+        />
+
+        <PhoneInput
+          label="Phone number"
+          name="phone"
+          countryCode={values.countryCode}
+          value={values.phone}
+          onChange={handleChange}
+          onCountryCodeChange={(countryCode) =>
+            setValues((previous) => ({
+              ...previous,
+              countryCode,
+            }))
+          }
+          error={errors.phone}
           required
         />
 
@@ -122,8 +222,19 @@ function SignupPage() {
           </span>
         </label>
 
-        <Button type="submit" className="w-full">
-          Create Account
+        <Button
+          type="submit"
+          className="w-full disabled:cursor-not-allowed disabled:opacity-70"
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (
+            <>
+              <LoaderCircle size={16} className="mr-2 animate-spin" />
+              Creating account...
+            </>
+          ) : (
+            "Create Account"
+          )}
         </Button>
       </form>
 
@@ -131,7 +242,18 @@ function SignupPage() {
         Already have an account?{" "}
         <Link
           to={ROUTES.LOGIN}
-          className="font-semibold text-blue-600 hover:text-blue-700"
+          onClick={(event) => {
+            if (isSubmitting) {
+              event.preventDefault();
+            }
+          }}
+          aria-disabled={isSubmitting}
+          tabIndex={isSubmitting ? -1 : 0}
+          className={`font-semibold ${
+            isSubmitting
+              ? "pointer-events-none cursor-not-allowed text-slate-400"
+              : "text-blue-600 hover:text-blue-700"
+          }`}
         >
           Sign in
         </Link>

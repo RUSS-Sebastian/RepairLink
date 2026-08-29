@@ -38,6 +38,20 @@ public class GlobalExceptionHandler {
                 .body(error);
     }
 
+    @ExceptionHandler(PhoneAlreadyExistsException.class)
+    public ResponseEntity<ApiError> handlePhoneAlreadyExists(
+            PhoneAlreadyExistsException exception
+    ) {
+        ApiError error = new ApiError(
+                "PHONE_ALREADY_EXISTS",
+                exception.getMessage()
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(error);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleValidation(
             MethodArgumentNotValidException exception

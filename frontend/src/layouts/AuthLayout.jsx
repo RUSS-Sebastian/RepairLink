@@ -6,13 +6,15 @@ function AuthLayout({ children }) {
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="flex min-h-screen">
-
         {/* Left panel */}
         <div className="hidden w-[45%] flex-col justify-between bg-slate-950 p-10 text-white lg:flex">
-
           <Link to={ROUTES.LANDING} className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600">
-              <CarFront size={23} />
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 shadow-lg shadow-blue-600/20">
+              <img
+                src="/images/repairlink-logo.png"
+                alt="RepairLink"
+                className="h-7 w-7 object-contain"
+              />
             </div>
 
             <span className="text-xl font-bold">
@@ -30,14 +32,12 @@ function AuthLayout({ children }) {
             </h1>
 
             <p className="mt-6 max-w-lg leading-7 text-slate-400">
-              Keep your vehicle service requests, estimates, repair updates
-              and service history connected in one place.
+              Keep your vehicle service requests, estimates, repair updates and
+              service history connected in one place.
             </p>
           </div>
 
-          <p className="text-sm text-slate-500">
-            © 2026 RepairLink. Prototype interface.
-          </p>
+          <p className="text-sm text-slate-500">© 2026 RepairLink.</p>
         </div>
 
         {/* Form */}
