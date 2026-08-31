@@ -47,3 +47,50 @@ export async function signupUser(userData) {
 
   return response.json();
 }
+
+export async function getCustomerProfile() {
+  const token = localStorage.getItem("repairlink_auth_token");
+
+  if (!token) {
+    throw new Error("Authentication required.");
+  }
+
+  const response = await fetch(`${API_BASE_URL}/auth/customers/profile`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const message = await parseApiError(response);
+    throw new Error(message);
+  }
+
+  return response.json();
+}
+
+export async function updateCustomerProfile(payload) {
+  const token = localStorage.getItem("repairlink_auth_token");
+
+  if (!token) {
+    throw new Error("Authentication required.");
+  }
+
+  const response = await fetch(`${API_BASE_URL}/auth/customers/profile`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const message = await parseApiError(response);
+    throw new Error(message);
+  }
+
+  return response.json();
+}

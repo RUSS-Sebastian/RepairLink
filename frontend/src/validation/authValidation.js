@@ -63,3 +63,32 @@ export function validateSignup(values) {
 
   return errors;
 }
+
+export function validateProfileUpdate(changes) {
+  const errors = {};
+
+  if (changes.fullName !== undefined) {
+    if (!changes.fullName.trim()) {
+      errors.name = "Full name cannot be blank.";
+    }
+  }
+
+  if (changes.email !== undefined) {
+    if (!changes.email.trim()) {
+      errors.email = "Email is required.";
+    } else if (!/\S+@\S+\.\S+/.test(changes.email)) {
+      errors.email = "Enter a valid email address.";
+    }
+  }
+
+  if (changes.phone !== undefined) {
+    if (!changes.phone.trim()) {
+      errors.phone = "Phone number is required.";
+    } else if (!/^\+\d{1,3}\d{10}$/.test(changes.phone.trim())) {
+      errors.phone =
+        "Phone number must include a valid country code and exactly 10 digits after it.";
+    }
+  }
+
+  return errors;
+}

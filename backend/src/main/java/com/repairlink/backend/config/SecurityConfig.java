@@ -79,6 +79,8 @@ public class SecurityConfig {
                                         "/error"
                                 )
                                 .permitAll()
+                                .requestMatchers("/api/auth/customers/**")
+                                .hasRole("CUSTOMER")
                                 .anyRequest()
                                 .authenticated()
                 )

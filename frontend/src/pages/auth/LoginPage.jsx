@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   AlertCircle,
@@ -28,6 +28,15 @@ function LoginPage() {
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const logoutMessage = sessionStorage.getItem("repairlink_logout_success");
+
+    if (logoutMessage) {
+      setSubmitSuccess(logoutMessage);
+      sessionStorage.removeItem("repairlink_logout_success");
+    }
+  }, []);
 
   const handleChange = (event) => {
     const { name, value } = event.target;

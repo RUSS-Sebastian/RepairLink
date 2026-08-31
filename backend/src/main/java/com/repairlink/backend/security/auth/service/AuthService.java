@@ -5,10 +5,12 @@ import com.repairlink.backend.common.enums.RoleCode;
 import com.repairlink.backend.common.exception.EmailAlreadyExistsException;
 import com.repairlink.backend.common.exception.InvalidCredentialsException;
 import com.repairlink.backend.common.exception.PhoneAlreadyExistsException;
+import com.repairlink.backend.security.auth.dto.CustomerProfileResponse;
 import com.repairlink.backend.security.auth.dto.LoginRequest;
-import com.repairlink.backend.security.auth.dto.SignupRequest;
-import com.repairlink.backend.security.auth.dto.UserResponse;
 import com.repairlink.backend.security.auth.dto.LoginResponse;
+import com.repairlink.backend.security.auth.dto.SignupRequest;
+import com.repairlink.backend.security.auth.dto.UpdateCustomerProfileRequest;
+import com.repairlink.backend.security.auth.dto.UserResponse;
 import com.repairlink.backend.security.auth.entity.Role;
 import com.repairlink.backend.security.auth.entity.UserAccount;
 import com.repairlink.backend.security.auth.entity.UserRole;
@@ -138,7 +140,7 @@ public class AuthService {
     }
 
         @Transactional(readOnly = true)
-        public UserResponse getCurrentUser(UUID userId) {
+    public UserResponse getCurrentUser(UUID userId) {
         UserAccount user = userAccountRepository
                 .findById(userId)
                 .orElseThrow(() ->
@@ -160,7 +162,112 @@ public class AuthService {
                 );
 
         return toUserResponse(user, roleCode);
+    }
+
+    @Transactional(readOnly = true)
+    public CustomerProfileResponse getCurrentCustomerProfile(UUID userId) {
+        UserAccount user = userAccountRepository
+                .findById(userId)
+                .orElseThrow(() ->
+                        new IllegalStateException(
+                                "Authenticated user no longer exists."
+                        )
+                );
+
+        boolean isCustomer = userRoleRepository
+                .findAllByUserUserIdAndActiveTrue(userId)
+                .stream()
+                .map(UserRole::getRole)
+                .map(Role::getRoleCode)
+                .anyMatch(RoleCode.CUSTOMER::equals);
+
+        if (!isCustomer) {
+            throw new IllegalStateException(
+                    "Only customers can access this profile endpoint."
+            );
         }
+
+        return new CustomerProfileResponse(
+                user.getFullName(),
+                user.getEmail(),
+                user.getPhone(),
+                formatMemberSince(user.getCreatedAt())
+        );
+    }
+
+    @Transactional
+    public CustomerProfileResponse updateCurrentCustomerProfile(
+            UUID userId,
+            UpdateCustomerProfileRequest request
+    ) {
+        UserAccount user = userAccountRepository
+                .findById(userId)
+                .orElseThrow(() ->
+                        new IllegalStateException(
+                                "Authenticated user no longer exists."
+                        )
+                );
+
+        boolean isCustomer = userRoleRepository
+                .findAllByUserUserIdAndActiveTrue(userId)
+                .stream()
+                .map(UserRole::getRole)
+                .map(Role::getRoleCode)
+                .anyMatch(RoleCode.CUSTOMER::equals);
+
+        if (!isCustomer) {
+            throw new IllegalStateException(
+                    "Only customers can update this profile."
+            );
+        }
+
+        String nextFullName = request.fullName() == null
+                ? user.getFullName()
+                : normalizeFullName(request.fullName());
+
+        String nextEmail = request.email() == null
+                ? user.getEmail()
+                : normalizeEmail(request.email());
+
+        String nextPhone = request.phone() == null
+                ? user.getPhone()
+                : request.phone().trim();
+
+        if (request.fullName() != null && nextFullName.isBlank()) {
+            throw new IllegalArgumentException("Full name cannot be blank.");
+        }
+
+        if (request.email() != null && nextEmail.isBlank()) {
+            throw new IllegalArgumentException("Email cannot be blank.");
+        }
+
+        if (request.phone() != null && nextPhone.isBlank()) {
+            throw new IllegalArgumentException("Phone number cannot be blank.");
+        }
+
+        if (request.email() != null && !nextEmail.equalsIgnoreCase(user.getEmail())
+                && userAccountRepository.existsByEmailIgnoreCaseAndUserIdNot(nextEmail, userId)) {
+            throw new EmailAlreadyExistsException();
+        }
+
+        if (request.phone() != null && !nextPhone.equalsIgnoreCase(user.getPhone())
+                && userAccountRepository.existsByPhoneAndUserIdNot(nextPhone, userId)) {
+            throw new PhoneAlreadyExistsException();
+        }
+
+        user.setFullName(nextFullName);
+        user.setEmail(nextEmail);
+        user.setPhone(nextPhone);
+
+        UserAccount savedUser = userAccountRepository.save(user);
+
+        return new CustomerProfileResponse(
+                savedUser.getFullName(),
+                savedUser.getEmail(),
+                savedUser.getPhone(),
+                formatMemberSince(savedUser.getCreatedAt())
+        );
+    }
 
     private UserResponse toUserResponse(
             UserAccount user,
@@ -184,5 +291,16 @@ public class AuthService {
         return fullName
                 .trim()
                 .replaceAll("\\s+", " ");
+    }
+
+    private String formatMemberSince(Instant createdAt) {
+        if (createdAt == null) {
+            return "";
+        }
+
+        return createdAt
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDate()
+                .toString();
     }
 }
