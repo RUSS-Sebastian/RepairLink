@@ -1,6 +1,7 @@
 package com.repairlink.backend.config;
 
 import com.repairlink.backend.security.auth.filter.JwtAuthenticationFilter;
+import com.repairlink.backend.security.auth.handler.RestAccessDeniedHandler;
 import com.repairlink.backend.security.auth.handler.RestAuthenticationEntryPoint;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,13 +22,16 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final RestAuthenticationEntryPoint authenticationEntryPoint;
+    private final RestAccessDeniedHandler accessDeniedHandler;
 
     public SecurityConfig(
             JwtAuthenticationFilter jwtAuthenticationFilter,
-            RestAuthenticationEntryPoint authenticationEntryPoint
+            RestAuthenticationEntryPoint authenticationEntryPoint,
+            RestAccessDeniedHandler accessDeniedHandler
     ) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.authenticationEntryPoint = authenticationEntryPoint;
+        this.accessDeniedHandler = accessDeniedHandler;
     }
 
     @Bean
@@ -66,7 +70,7 @@ public class SecurityConfig {
                 .exceptionHandling(exception ->
                         exception.authenticationEntryPoint(
                                 authenticationEntryPoint
-                        )
+                        ).accessDeniedHandler(accessDeniedHandler)
                 )
                 .authorizeHttpRequests(auth ->
                         auth
@@ -80,6 +84,8 @@ public class SecurityConfig {
                                 )
                                 .permitAll()
                                 .requestMatchers("/api/auth/customers/**")
+                                .hasRole("CUSTOMER")
+                                .requestMatchers("/api/vehicles", "/api/vehicles/**")
                                 .hasRole("CUSTOMER")
                                 .anyRequest()
                                 .authenticated()

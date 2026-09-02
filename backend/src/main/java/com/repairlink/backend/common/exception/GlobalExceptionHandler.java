@@ -4,11 +4,40 @@ import com.repairlink.backend.common.response.ApiError;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(VehicleNotFoundException.class)
+    public ResponseEntity<ApiError> handleVehicleNotFound(
+            VehicleNotFoundException exception
+    ) {
+        ApiError error = new ApiError(
+                "VEHICLE_NOT_FOUND",
+                exception.getMessage()
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(error);
+    }
+
+    @ExceptionHandler(LicensePlateAlreadyExistsException.class)
+    public ResponseEntity<ApiError> handleLicensePlateAlreadyExists(
+            LicensePlateAlreadyExistsException exception
+    ) {
+        ApiError error = new ApiError(
+                "LICENSE_PLATE_ALREADY_EXISTS",
+                exception.getMessage()
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(error);
+    }
 
     @ExceptionHandler(EmailAlreadyExistsException.class)
     public ResponseEntity<ApiError> handleEmailAlreadyExists(
@@ -83,6 +112,20 @@ public class GlobalExceptionHandler {
         ApiError error = new ApiError(
                 "VALIDATION_ERROR",
                 message
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(error);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> handleUnreadableRequest(
+            HttpMessageNotReadableException exception
+    ) {
+        ApiError error = new ApiError(
+                "VALIDATION_ERROR",
+                "The request contains an invalid value."
         );
 
         return ResponseEntity

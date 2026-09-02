@@ -17,6 +17,7 @@ import com.repairlink.backend.security.auth.entity.UserRole;
 import com.repairlink.backend.security.auth.repository.RoleRepository;
 import com.repairlink.backend.security.auth.repository.UserAccountRepository;
 import com.repairlink.backend.security.auth.repository.UserRoleRepository;
+import com.repairlink.backend.vehicle.repository.VehicleRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,19 +35,22 @@ public class AuthService {
     private final UserRoleRepository userRoleRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final VehicleRepository vehicleRepository;
 
     public AuthService(
             UserAccountRepository userAccountRepository,
             RoleRepository roleRepository,
             UserRoleRepository userRoleRepository,
             PasswordEncoder passwordEncoder,
-            JwtService jwtService
+            JwtService jwtService,
+            VehicleRepository vehicleRepository
     ) {
         this.userAccountRepository = userAccountRepository;
         this.roleRepository = roleRepository;
         this.userRoleRepository = userRoleRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.vehicleRepository = vehicleRepository;
     }
 
     @Transactional
@@ -191,7 +195,8 @@ public class AuthService {
                 user.getFullName(),
                 user.getEmail(),
                 user.getPhone(),
-                formatMemberSince(user.getCreatedAt())
+                formatMemberSince(user.getCreatedAt()),
+                vehicleRepository.countByOwnerUserIdAndDeletedAtIsNull(userId)
         );
     }
 
@@ -265,7 +270,8 @@ public class AuthService {
                 savedUser.getFullName(),
                 savedUser.getEmail(),
                 savedUser.getPhone(),
-                formatMemberSince(savedUser.getCreatedAt())
+                formatMemberSince(savedUser.getCreatedAt()),
+                vehicleRepository.countByOwnerUserIdAndDeletedAtIsNull(userId)
         );
     }
 
