@@ -10,10 +10,8 @@ import {
   Fuel,
   Palette,
   CreditCard,
-  Menu,
 } from "lucide-react";
 
-import CustomerSidebar from "../../components/navigation/CustomerSidebar";
 import VehicleFormModal from "../../components/modals/VehicleFormModal";
 import DeleteVehicleModal from "../../components/modals/DeleteVehicleModal";
 import { useVehicles } from "../../context/VehicleContext";
@@ -21,7 +19,6 @@ import { useVehicles } from "../../context/VehicleContext";
 function MyVehiclesPage() {
   const { vehicles } = useVehicles();
 
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState(null);
   const [deletingVehicle, setDeletingVehicle] = useState(null);
@@ -43,94 +40,49 @@ function MyVehiclesPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <div className="flex min-h-screen">
-        {/* Sidebar */}
-        <CustomerSidebar
-          mobileOpen={mobileOpen}
-          onClose={() => setMobileOpen(false)}
-        />
+      <main className="mx-auto max-w-7xl px-5 py-8 lg:px-8 lg:py-10">
+        {/* Heading */}
+        <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+              My Vehicles
+            </h1>
 
-        {/* Main content */}
-        <div className="min-w-0 flex-1">
-          {/* Mobile header */}
-          <div className="sticky top-0 z-30 flex h-16 items-center border-b border-slate-200 bg-white px-4 lg:hidden">
-            <button
-              type="button"
-              onClick={() => setMobileOpen(true)}
-              className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"
-              aria-label="Open menu"
-            >
-              <Menu size={23} />
-            </button>
-
-            <div className="ml-3">
-              <p className="font-bold text-slate-900">
-                Repair<span className="text-blue-600">Link</span>
-              </p>
-            </div>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
+              Manage your vehicles and keep their information up to date.
+            </p>
           </div>
 
-          {/* Page content */}
-          <main className="mx-auto max-w-7xl px-5 py-8 lg:px-8 lg:py-10">
-            {/* Heading */}
-            <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="mb-2 text-sm font-semibold text-blue-600">
-                  Customer Portal
-                </p>
-
-                <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-                  My Vehicles
-                </h1>
-
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
-                  Manage your vehicles and keep their information up to date.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleAddVehicle}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
-              >
-                <Plus size={18} />
-                Add Vehicle
-              </button>
-            </div>
-
-            {/* Vehicle count */}
-            <div className="mb-5 flex items-center justify-between">
-              <p className="text-sm font-medium text-slate-500">
-                {vehicles.length}{" "}
-                {vehicles.length === 1 ? "vehicle" : "vehicles"}
-              </p>
-            </div>
-
-            {/* Vehicle cards */}
-            {vehicles.length > 0 ? (
-              <div className="grid gap-6 xl:grid-cols-2">
-                {vehicles.map((vehicle) => (
-                  <VehicleCard
-                    key={vehicle.id}
-                    vehicle={vehicle}
-                    onEdit={() => handleEditVehicle(vehicle)}
-                    onDelete={() => setDeletingVehicle(vehicle)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <EmptyVehiclesState onAdd={handleAddVehicle} />
-            )}
-          </main>
+          <button
+            type="button"
+            onClick={handleAddVehicle}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0261F3] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0256D6]"
+          >
+            <Plus size={18} />
+            Add Vehicle
+          </button>
         </div>
-      </div>
+
+        {/* Vehicle cards */}
+        {vehicles.length > 0 ? (
+          <div className="grid gap-6 xl:grid-cols-2">
+            {vehicles.map((vehicle) => (
+              <VehicleCard
+                key={vehicle.id}
+                vehicle={vehicle}
+                onEdit={() => handleEditVehicle(vehicle)}
+                onDelete={() => setDeletingVehicle(vehicle)}
+              />
+            ))}
+          </div>
+        ) : (
+          <EmptyVehiclesState onAdd={handleAddVehicle} />
+        )}
+      </main>
 
       {/* Add/Edit modal */}
       {showVehicleModal && (
-        <VehicleFormModal
-          vehicle={editingVehicle}
-          onClose={handleCloseModal}
-        />
+        <VehicleFormModal vehicle={editingVehicle} onClose={handleCloseModal} />
       )}
 
       {/* Delete modal */}
@@ -146,7 +98,7 @@ function MyVehiclesPage() {
 
 /* Vehicle Card */
 function VehicleCard({ vehicle, onEdit, onDelete }) {
-  const isElectric = vehicle.type === "EV";
+  const isElectric = vehicle.vehicleType === "EV";
 
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
@@ -176,7 +128,9 @@ function VehicleCard({ vehicle, onEdit, onDelete }) {
                     : "bg-slate-100 text-slate-600"
                 }`}
               >
-                {vehicle.type}
+                {vehicle.vehicleType === "NORMAL_CAR"
+                  ? "Normal Car"
+                  : "Electric Vehicle"}
               </span>
             </div>
 
@@ -189,11 +143,7 @@ function VehicleCard({ vehicle, onEdit, onDelete }) {
 
       {/* Vehicle information */}
       <div className="grid grid-cols-2 gap-5 p-6 sm:grid-cols-4">
-        <InfoItem
-          icon={Palette}
-          label="Color"
-          value={vehicle.color}
-        />
+        <InfoItem icon={Palette} label="Color" value={vehicle.color} />
 
         <InfoItem
           icon={CreditCard}
@@ -207,18 +157,14 @@ function VehicleCard({ vehicle, onEdit, onDelete }) {
           value={`${vehicle.mileage.toLocaleString()} ${vehicle.mileageUnit}`}
         />
 
-        <InfoItem
-          icon={Fuel}
-          label="Fuel"
-          value={vehicle.fuelType}
-        />
+        <InfoItem icon={Fuel} label="Fuel" value={vehicle.fuelType} />
       </div>
 
       {/* Actions */}
       <div className="flex flex-wrap gap-3 border-t border-slate-100 bg-slate-50/70 p-4">
         <Link
           to={`/customer/vehicles/${vehicle.id}`}
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#0261F3] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0256D6]"
         >
           <Eye size={17} />
           View Details
@@ -227,7 +173,8 @@ function VehicleCard({ vehicle, onEdit, onDelete }) {
         <button
           type="button"
           onClick={onEdit}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+          disabled
+          className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-400"
         >
           <Pencil size={16} />
           Edit
@@ -236,7 +183,8 @@ function VehicleCard({ vehicle, onEdit, onDelete }) {
         <button
           type="button"
           onClick={onDelete}
-          className="inline-flex items-center justify-center rounded-xl border border-red-200 bg-white px-3 py-2.5 text-red-600 transition hover:bg-red-50"
+          disabled
+          className="inline-flex cursor-not-allowed items-center justify-center rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-slate-400"
           aria-label={`Delete ${vehicle.nickname}`}
         >
           <Trash2 size={17} />
@@ -255,9 +203,7 @@ function InfoItem({ icon: Icon, label, value }) {
         <span>{label}</span>
       </div>
 
-      <p className="truncate text-sm font-semibold text-slate-800">
-        {value}
-      </p>
+      <p className="truncate text-sm font-semibold text-slate-800">{value}</p>
     </div>
   );
 }
@@ -270,19 +216,17 @@ function EmptyVehiclesState({ onAdd }) {
         <CarFront size={30} />
       </div>
 
-      <h2 className="mt-5 text-xl font-bold text-slate-900">
-        No vehicles yet
-      </h2>
+      <h2 className="mt-5 text-xl font-bold text-slate-900">No vehicles yet</h2>
 
       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-        Add your first vehicle to start managing its information and
-        requesting automotive services.
+        Add your first vehicle to start managing its information and requesting
+        automotive services.
       </p>
 
       <button
         type="button"
         onClick={onAdd}
-        className="mt-6 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+        className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#0261F3] px-5 py-3 text-sm font-semibold text-white hover:bg-[#0256D6]"
       >
         <Plus size={18} />
         Add Vehicle

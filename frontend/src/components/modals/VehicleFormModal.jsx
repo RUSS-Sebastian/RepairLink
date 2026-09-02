@@ -7,9 +7,9 @@ const emptyForm = {
   year: "",
   make: "",
   model: "",
-  type: "Normal Car",
-  fuelType: "Petrol",
-  transmission: "Automatic",
+  vehicleType: "NORMAL_CAR",
+  fuelType: "PETROL",
+  transmission: "AUTOMATIC",
   color: "",
   licensePlate: "",
   mileage: "",
@@ -26,14 +26,17 @@ function VehicleFormModal({ vehicle, onClose }) {
 
   useEffect(() => {
     if (vehicle) {
+      const vehicleType = vehicle.vehicleType || vehicle.type || "NORMAL_CAR";
+
       setForm({
         nickname: vehicle.nickname || "",
         year: vehicle.year || "",
         make: vehicle.make || "",
         model: vehicle.model || "",
-        type: vehicle.type || "Normal Car",
-        fuelType: vehicle.fuelType || "Petrol",
-        transmission: vehicle.transmission || "Automatic",
+        vehicleType,
+        fuelType: vehicleType === "EV" ? null : vehicle.fuelType || "PETROL",
+        transmission:
+          vehicleType === "EV" ? null : vehicle.transmission || "AUTOMATIC",
         color: vehicle.color || "",
         licensePlate: vehicle.licensePlate || "",
         mileage: vehicle.mileage || "",
@@ -46,10 +49,20 @@ function VehicleFormModal({ vehicle, onClose }) {
 
   const handleChange = (event) => {
     const { name, value } = event.target;
+    const nextValue =
+      name === "licensePlate"
+        ? value
+            .toUpperCase()
+            .replace(/[^A-Z0-9-]/g, "")
+            .slice(0, 8)
+        : value;
 
     setForm((current) => ({
       ...current,
-      [name]: value,
+      [name]: nextValue,
+      ...(name === "vehicleType" && value === "EV"
+        ? { fuelType: null, transmission: null }
+        : {}),
     }));
 
     setError("");
@@ -67,6 +80,11 @@ function VehicleFormModal({ vehicle, onClose }) {
       !form.licensePlate
     ) {
       setError("Please complete all required fields.");
+      return;
+    }
+
+    if (!/^[A-Z]{3}-\d{4}$/.test(form.licensePlate)) {
+      setError("License plate must use the format ABC-1234 in uppercase.");
       return;
     }
 
@@ -88,7 +106,7 @@ function VehicleFormModal({ vehicle, onClose }) {
         }
       }}
     >
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-5">
           <div className="flex items-center gap-3">
@@ -172,45 +190,57 @@ function VehicleFormModal({ vehicle, onClose }) {
             {/* Vehicle type */}
             <SelectField
               label="Vehicle Type"
-              name="type"
-              value={form.type}
+              name="vehicleType"
+              value={form.vehicleType}
               onChange={handleChange}
               options={[
-                "Normal Car",
-                "EV",
-                "SUV",
-                "Truck",
-                "Van",
-                "Motorcycle",
+                { value: "NORMAL_CAR", label: "Normal Car" },
+                { value: "EV", label: "Electric Vehicle" },
               ]}
             />
 
-            {/* Fuel */}
-            <SelectField
-              label="Fuel Type"
-              name="fuelType"
-              value={form.fuelType}
-              onChange={handleChange}
-              options={[
-                "Petrol",
-                "Diesel",
-                "Electric",
-                "Hybrid",
-              ]}
-            />
+            {form.vehicleType === "EV" ? (
+              <div className="sm:col-span-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-800">
+                Fuel type and transmission are not required for electric
+                vehicles, so these fields are hidden.
+              </div>
+            ) : (
+              <>
+                <SelectField
+                  label="Fuel Type"
+                  name="fuelType"
+                  value={form.fuelType}
+                  onChange={handleChange}
+                  options={[
+                    { value: "PETROL", label: "Petrol" },
+                    { value: "DIESEL", label: "Diesel" },
+                    { value: "HYBRID", label: "Hybrid" },
+                    { value: "PLUG_IN_HYBRID", label: "Plug-in Hybrid" },
+                    { value: "CNG", label: "CNG" },
+                    { value: "LPG", label: "LPG" },
+                    {
+                      value: "HYDROGEN_FUEL_CELL",
+                      label: "Hydrogen Fuel Cell",
+                    },
+                  ]}
+                />
 
-            {/* Transmission */}
-            <SelectField
-              label="Transmission"
-              name="transmission"
-              value={form.transmission}
-              onChange={handleChange}
-              options={[
-                "Automatic",
-                "Manual",
-                "CVT",
-              ]}
-            />
+                <SelectField
+                  label="Transmission"
+                  name="transmission"
+                  value={form.transmission}
+                  onChange={handleChange}
+                  options={[
+                    { value: "MANUAL", label: "Manual" },
+                    { value: "AUTOMATIC", label: "Automatic" },
+                    { value: "CVT", label: "CVT" },
+                    { value: "DCT", label: "DCT" },
+                    { value: "AMT", label: "AMT" },
+                    { value: "E_CVT", label: "E-CVT" },
+                  ]}
+                />
+              </>
+            )}
 
             {/* Color */}
             <Field
@@ -228,8 +258,11 @@ function VehicleFormModal({ vehicle, onClose }) {
               name="licensePlate"
               value={form.licensePlate}
               onChange={handleChange}
-              placeholder="e.g. ABC-1234"
+              placeholder="ABC-1234"
               required
+              pattern="[A-Z]{3}-[0-9]{4}"
+              title="Use 3 uppercase letters, a hyphen, and 4 numbers (ABC-1234)."
+              maxLength={8}
             />
 
             {/* Mileage */}
@@ -249,7 +282,10 @@ function VehicleFormModal({ vehicle, onClose }) {
               name="mileageUnit"
               value={form.mileageUnit}
               onChange={handleChange}
-              options={["mi", "km"]}
+              options={[
+                { value: "mi", label: "mi" },
+                { value: "km", label: "km" },
+              ]}
             />
           </div>
 
@@ -265,7 +301,7 @@ function VehicleFormModal({ vehicle, onClose }) {
 
             <button
               type="submit"
-              className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+              className="rounded-xl bg-[#0261F3] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#0256D6]"
             >
               {isEditing ? "Save Changes" : "Add Vehicle"}
             </button>
@@ -311,13 +347,7 @@ function Field({
   );
 }
 
-function SelectField({
-  label,
-  name,
-  value,
-  onChange,
-  options,
-}) {
+function SelectField({ label, name, value, onChange, options }) {
   return (
     <div>
       <label
@@ -335,8 +365,8 @@ function SelectField({
         className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
       >
         {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
+          <option key={option.value} value={option.value}>
+            {option.label}
           </option>
         ))}
       </select>

@@ -65,7 +65,7 @@ function AppRoutes() {
         path={ROUTES.MY_VEHICLES}
         element={
           <ProtectedCustomerRoute>
-            <PagePlaceholder title="My Vehicles" />
+            <MyVehiclesPage />
           </ProtectedCustomerRoute>
         }
       />
@@ -231,12 +231,20 @@ function AppRoutes() {
       {/* Customer Vehicles */}
       <Route
         path="/customer/vehicles"
-        element={<MyVehiclesPage />}
+        element={
+          <ProtectedCustomerRoute>
+            <MyVehiclesPage />
+          </ProtectedCustomerRoute>
+        }
       />
 
       <Route
         path="/customer/vehicles/:id"
-        element={<VehicleDetailsPage />}
+        element={
+          <ProtectedCustomerRoute>
+            <VehicleDetailsPage />
+          </ProtectedCustomerRoute>
+        }
       />
 
       {/* Default */}

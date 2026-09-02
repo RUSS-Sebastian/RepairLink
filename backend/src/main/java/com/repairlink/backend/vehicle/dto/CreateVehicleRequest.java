@@ -29,8 +29,8 @@ public record CreateVehicleRequest(
         @NotBlank(message = "License plate is required.")
         @Size(max = 50, message = "License plate must contain at most 50 characters.")
         @Pattern(
-                regexp = "^[A-Za-z0-9 -]+$",
-                message = "License plate may contain only English letters, numbers, spaces, and hyphens."
+                regexp = "^[A-Z]{3}-[0-9]{4}$",
+                message = "License plate must use the format ABC-1234 in uppercase."
         )
         String licensePlate,
 

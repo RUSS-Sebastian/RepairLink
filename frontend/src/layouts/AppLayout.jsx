@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Activity,
   Bell,
@@ -51,6 +51,7 @@ const adminNavigationItems = [
 
 function AppLayout({ children }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const session = useMemo(() => getStoredAuthSession(), []);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -140,39 +141,59 @@ function AppLayout({ children }) {
                 <NavLink
                   to={path}
                   title={isCollapsed ? label : undefined}
-                  className={({ isActive }) =>
-                    [
+                  className={({ isActive }) => {
+                    const isVehicleSection = label === "My Vehicles";
+                    const isVehicleRoute =
+                      location.pathname === "/my-vehicles" ||
+                      location.pathname.startsWith("/my-vehicles/") ||
+                      location.pathname === "/customer/vehicles" ||
+                      location.pathname.startsWith("/customer/vehicles/");
+                    const active =
+                      isActive || (isVehicleSection && isVehicleRoute);
+
+                    return [
                       "flex items-center rounded-xl transition-all duration-300 ease-out",
                       isCollapsed
                         ? "justify-center px-2 py-2.5"
                         : "gap-3 px-3 py-2.5",
-                      isActive
+                      active
                         ? "bg-[#EAF3FF] text-[#0261F3] shadow-sm"
                         : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
-                    ].join(" ")
-                  }
+                    ].join(" ");
+                  }}
                 >
-                  {({ isActive }) => (
-                    <>
-                      <Icon
-                        size={16}
-                        className={
-                          isActive ? "text-[#0261F3]" : "text-slate-500"
-                        }
-                      />
-                      {!isCollapsed && (
-                        <span
+                  {({ isActive }) => {
+                    const isVehicleSection = label === "My Vehicles";
+                    const isVehicleRoute =
+                      location.pathname === "/my-vehicles" ||
+                      location.pathname.startsWith("/my-vehicles/") ||
+                      location.pathname === "/customer/vehicles" ||
+                      location.pathname.startsWith("/customer/vehicles/");
+                    const active =
+                      isActive || (isVehicleSection && isVehicleRoute);
+
+                    return (
+                      <>
+                        <Icon
+                          size={16}
                           className={
-                            isActive
-                              ? "text-sm font-semibold text-[#0261F3]"
-                              : "text-sm font-medium text-slate-600"
+                            active ? "text-[#0261F3]" : "text-slate-500"
                           }
-                        >
-                          {label}
-                        </span>
-                      )}
-                    </>
-                  )}
+                        />
+                        {!isCollapsed && (
+                          <span
+                            className={
+                              active
+                                ? "text-sm font-semibold text-[#0261F3]"
+                                : "text-sm font-medium text-slate-600"
+                            }
+                          >
+                            {label}
+                          </span>
+                        )}
+                      </>
+                    );
+                  }}
                 </NavLink>
               </li>
             ))}
