@@ -21,6 +21,16 @@ function ProtectedCustomerRoute({ children }) {
   return <AppLayout>{children}</AppLayout>;
 }
 
+function ProtectedAdminRoute({ children }) {
+  const { token, user } = getStoredAuthSession();
+
+  if (!token || user?.role !== "ADMIN") {
+    return <Navigate to={ROUTES.LOGIN} replace />;
+  }
+
+  return <AppLayout>{children}</AppLayout>;
+}
+
 function AppRoutes() {
   return (
     <Routes>
@@ -128,6 +138,87 @@ function AppRoutes() {
       />
 
       <Route
+        path={ROUTES.ADMIN_DASHBOARD}
+        element={
+          <ProtectedAdminRoute>
+            <AdminDashboardPage />
+          </ProtectedAdminRoute>
+        }
+      />
+
+      <Route
+        path={ROUTES.ADMIN_PARTS}
+        element={
+          <ProtectedAdminRoute>
+            <PagePlaceholder title="Parts" />
+          </ProtectedAdminRoute>
+        }
+      />
+
+      <Route
+        path={ROUTES.ADMIN_LABOR_RATES}
+        element={
+          <ProtectedAdminRoute>
+            <PagePlaceholder title="Labor Rates" />
+          </ProtectedAdminRoute>
+        }
+      />
+
+      <Route
+        path={ROUTES.ADMIN_ADDITIONAL_SERVICES}
+        element={
+          <ProtectedAdminRoute>
+            <PagePlaceholder title="Additional Services" />
+          </ProtectedAdminRoute>
+        }
+      />
+
+      <Route
+        path={ROUTES.ADMIN_SCHEDULING}
+        element={
+          <ProtectedAdminRoute>
+            <PagePlaceholder title="Scheduling" />
+          </ProtectedAdminRoute>
+        }
+      />
+
+      <Route
+        path={ROUTES.ADMIN_LOYALTY}
+        element={
+          <ProtectedAdminRoute>
+            <PagePlaceholder title="Loyalty" />
+          </ProtectedAdminRoute>
+        }
+      />
+
+      <Route
+        path={ROUTES.ADMIN_NOTIFICATIONS}
+        element={
+          <ProtectedAdminRoute>
+            <PagePlaceholder title="Notifications" />
+          </ProtectedAdminRoute>
+        }
+      />
+
+      <Route
+        path={ROUTES.ADMIN_AUDIT_LOG}
+        element={
+          <ProtectedAdminRoute>
+            <PagePlaceholder title="Audit Log" />
+          </ProtectedAdminRoute>
+        }
+      />
+
+      <Route
+        path={ROUTES.ADMIN_PROFILE}
+        element={
+          <ProtectedAdminRoute>
+            <PagePlaceholder title="Admin Profile" />
+          </ProtectedAdminRoute>
+        }
+      />
+
+      <Route
         path={ROUTES.CUSTOMER_DASHBOARD}
         element={<Navigate to={ROUTES.DASHBOARD} replace />}
       />
@@ -137,9 +228,10 @@ function AppRoutes() {
         element={
           <Navigate
             to={
-              getStoredAuthSession().token &&
-              getStoredAuthSession().user?.role === "CUSTOMER"
-                ? ROUTES.DASHBOARD
+              getStoredAuthSession().token
+                ? getStoredAuthSession().user?.role === "ADMIN"
+                  ? ROUTES.ADMIN_DASHBOARD
+                  : ROUTES.DASHBOARD
                 : ROUTES.LANDING
             }
             replace
@@ -147,7 +239,19 @@ function AppRoutes() {
         }
       />
 
-      <Route path="*" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
+      <Route
+        path="*"
+        element={
+          <Navigate
+            to={
+              getStoredAuthSession().user?.role === "ADMIN"
+                ? ROUTES.ADMIN_DASHBOARD
+                : ROUTES.DASHBOARD
+            }
+            replace
+          />
+        }
+      />
     </Routes>
   );
 }
@@ -163,6 +267,22 @@ function DashboardPage() {
       </p>
       <p className="mt-4 text-xl text-slate-600">
         Welcome to your RepairLink dashboard.
+      </p>
+    </div>
+  );
+}
+
+function AdminDashboardPage() {
+  const session = getStoredAuthSession();
+  const username = session.user?.fullName || "Admin";
+
+  return (
+    <div className="flex h-full flex-col justify-center">
+      <p className="text-4xl font-bold tracking-tight text-slate-900">
+        Hello, {username}
+      </p>
+      <p className="mt-4 text-xl text-slate-600">
+        Welcome to the admin console dashboard.
       </p>
     </div>
   );

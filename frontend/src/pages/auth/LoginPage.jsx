@@ -84,10 +84,14 @@ function LoginPage() {
         user: response.user,
       });
 
+      const role = response.user?.role;
+      const nextRoute =
+        role === "ADMIN" ? ROUTES.ADMIN_DASHBOARD : ROUTES.CUSTOMER_DASHBOARD;
+
       setSubmitSuccess("Login successful. Redirecting to your dashboard...");
 
       setTimeout(() => {
-        navigate(ROUTES.CUSTOMER_DASHBOARD, { replace: true });
+        navigate(nextRoute, { replace: true });
       }, 800);
     } catch (error) {
       setSubmitError(error.message || "Unable to sign in. Please try again.");
