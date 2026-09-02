@@ -36,7 +36,7 @@ function LoginPage() {
 
     if (Object.keys(validationErrors).length === 0) {
       // Temporary frontend-only behavior.
-      navigate(ROUTES.LANDING);
+      navigate("/customer/vehicles");
     }
   };
 

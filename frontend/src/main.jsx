@@ -6,10 +6,14 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import "./index.css";
 
+import { VehicleProvider } from "./context/VehicleContext";
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
-      <App />
+      <VehicleProvider>
+        <App />
+      </VehicleProvider>
     </BrowserRouter>
   </React.StrictMode>
 );

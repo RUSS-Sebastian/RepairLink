@@ -6,9 +6,7 @@ import AuthLayout from "../../layouts/AuthLayout";
 import FormInput from "../../components/forms/FormInput";
 import Button from "../../components/common/Button";
 import { ROUTES } from "../../constants/routes";
-import { validateSignup } from "../../validation/authValidation";
-
-function SignupPage() {
+import { validateSignup } from "../../utils/validation/authValidation";function SignupPage() {
   const navigate = useNavigate();
 
   const [values, setValues] = useState({
