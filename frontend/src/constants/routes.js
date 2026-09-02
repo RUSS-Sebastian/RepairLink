@@ -2,6 +2,27 @@ export const ROUTES = {
   LANDING: "/landing",
   LOGIN: "/login",
   SIGNUP: "/signup",
+  DASHBOARD: "/dashboard",
+  MY_VEHICLES: "/my-vehicles",
+  SERVICE_REQUEST: "/service-request",
+  APPOINTMENTS: "/appointments",
+  ACTIVE_SERVICE: "/active-service",
+  LOYALTY: "/loyalty",
+  SERVICE_HISTORY: "/service-history",
+  REVIEWS: "/reviews",
+  NOTIFICATIONS: "/notifications",
+  PROFILE: "/profile",
+  CUSTOMER_DASHBOARD: "/customer/dashboard",
+
+  ADMIN_DASHBOARD: "/admin/dashboard",
+  ADMIN_PARTS: "/admin/parts",
+  ADMIN_LABOR_RATES: "/admin/labor-rates",
+  ADMIN_ADDITIONAL_SERVICES: "/admin/additional-services",
+  ADMIN_SCHEDULING: "/admin/scheduling",
+  ADMIN_LOYALTY: "/admin/loyalty",
+  ADMIN_NOTIFICATIONS: "/admin/notifications",
+  ADMIN_AUDIT_LOG: "/admin/audit-log",
+  ADMIN_PROFILE: "/admin/profile",
 };
 
 export default ROUTES;

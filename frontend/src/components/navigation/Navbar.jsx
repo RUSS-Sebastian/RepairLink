@@ -1,11 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  Menu,
-  X,
-  CarFront,
-  ArrowRight,
-} from "lucide-react";
+import { Menu, X, CarFront, ArrowRight } from "lucide-react";
 
 import Button from "../common/Button";
 import { ROUTES } from "../../constants/routes";
@@ -18,15 +13,18 @@ function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 lg:px-8">
-
         {/* Logo */}
         <Link
           to={ROUTES.LANDING}
           onClick={closeMobile}
           className="flex items-center gap-3"
         >
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-600/20">
-            <CarFront size={22} strokeWidth={2.2} />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 shadow-lg shadow-blue-600/20">
+            <img
+              src="images/repairlink-logo.png"
+              alt="RepairLink"
+              className="h-7 w-7 object-contain"
+            />
           </div>
 
           <div>
@@ -79,18 +77,11 @@ function Navbar() {
 
         {/* Desktop buttons */}
         <div className="hidden items-center gap-3 md:flex">
-          <Button
-            to={ROUTES.LOGIN}
-            variant="secondary"
-            className="px-4 py-2.5"
-          >
+          <Button to={ROUTES.LOGIN} variant="secondary" className="px-4 py-2.5">
             Login
           </Button>
 
-          <Button
-            to={ROUTES.SIGNUP}
-            className="px-4 py-2.5"
-          >
+          <Button to={ROUTES.SIGNUP} className="px-4 py-2.5">
             Sign Up
             <ArrowRight className="ml-2" size={16} />
           </Button>
@@ -122,11 +113,7 @@ function Navbar() {
               How It Works
             </a>
 
-            <a
-              href="#services"
-              onClick={closeMobile}
-              className="font-medium"
-            >
+            <a href="#services" onClick={closeMobile} className="font-medium">
               Services
             </a>
 
@@ -138,11 +125,7 @@ function Navbar() {
               Why RepairLink
             </a>
 
-            <a
-              href="#contact"
-              onClick={closeMobile}
-              className="font-medium"
-            >
+            <a href="#contact" onClick={closeMobile} className="font-medium">
               Contact
             </a>
 
