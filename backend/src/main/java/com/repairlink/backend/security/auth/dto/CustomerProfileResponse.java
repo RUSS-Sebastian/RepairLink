@@ -4,6 +4,7 @@ public record CustomerProfileResponse(
         String fullName,
         String email,
         String phone,
-        String memberSince
+        String memberSince,
+        long vehicleCount
 ) {
 }
