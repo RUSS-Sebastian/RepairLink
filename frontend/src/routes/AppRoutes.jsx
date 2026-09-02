@@ -3,6 +3,10 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import LandingPage from "../pages/customer/LandingPage";
 import LoginPage from "../pages/auth/LoginPage";
 import SignupPage from "../pages/auth/SignupPage";
+
+import MyVehiclesPage from "../pages/customer/MyVehiclesPage";
+import VehicleDetailsPage from "../pages/customer/VehicleDetailsPage";
+
 import CustomerDashboardPage from "../pages/customer/CustomerDashboardPage";
 import ProfilePage from "../pages/customer/ProfilePage";
 import AppLayout from "../layouts/AppLayout";
@@ -34,6 +38,7 @@ function ProtectedAdminRoute({ children }) {
 function AppRoutes() {
   return (
     <Routes>
+      {/* Public Landing Page */}
       <Route
         path={ROUTES.LANDING}
         element={
@@ -223,6 +228,18 @@ function AppRoutes() {
         element={<Navigate to={ROUTES.DASHBOARD} replace />}
       />
 
+      {/* Customer Vehicles */}
+      <Route
+        path="/customer/vehicles"
+        element={<MyVehiclesPage />}
+      />
+
+      <Route
+        path="/customer/vehicles/:id"
+        element={<VehicleDetailsPage />}
+      />
+
+      {/* Default */}
       <Route
         path="/"
         element={
@@ -239,6 +256,7 @@ function AppRoutes() {
         }
       />
 
+      {/* Unknown routes */}
       <Route
         path="*"
         element={
