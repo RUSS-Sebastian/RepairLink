@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { X, CarFront } from "lucide-react";
+import { X, CarFront, LoaderCircle, CheckCircle2 } from "lucide-react";
 import { useVehicles } from "../../context/VehicleContext";
 
 const emptyForm = {
@@ -16,11 +16,15 @@ const emptyForm = {
   mileageUnit: "mi",
 };
 
+const currentYear = new Date().getFullYear();
+
 function VehicleFormModal({ vehicle, onClose }) {
   const { addVehicle, updateVehicle } = useVehicles();
 
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isEditing = Boolean(vehicle);
 
@@ -62,17 +66,29 @@ function VehicleFormModal({ vehicle, onClose }) {
       [name]: nextValue,
       ...(name === "vehicleType" && value === "EV"
         ? { fuelType: null, transmission: null }
-        : {}),
+        : name === "vehicleType" && value === "NORMAL_CAR"
+          ? {
+              fuelType: current.fuelType || "PETROL",
+              transmission: current.transmission || "AUTOMATIC",
+            }
+          : {}),
     }));
 
     setError("");
+    setSuccess("");
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
+    if (isSubmitting) {
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+
     if (
-      !form.nickname ||
       !form.year ||
       !form.make ||
       !form.model ||
@@ -88,20 +104,46 @@ function VehicleFormModal({ vehicle, onClose }) {
       return;
     }
 
-    if (isEditing) {
-      updateVehicle(vehicle.id, form);
-    } else {
-      addVehicle(form);
+    const vehicleYear = Number(form.year);
+    if (vehicleYear < 1900 || vehicleYear > currentYear) {
+      setError(`Vehicle year must be between 1900 and ${currentYear}.`);
+      return;
     }
 
-    onClose();
+    if (
+      form.vehicleType === "NORMAL_CAR" &&
+      (!form.fuelType || !form.transmission)
+    ) {
+      setError("Fuel type and transmission are required for a normal car.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      if (isEditing) {
+        await updateVehicle(vehicle.id, buildUpdatePayload(vehicle, form));
+      } else {
+        await addVehicle(form);
+      }
+
+      setSuccess(
+        isEditing
+          ? "Vehicle updated successfully."
+          : "Vehicle added successfully.",
+      );
+    } catch (requestError) {
+      setError(requestError.message || "Unable to save vehicle.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
+        if (!isSubmitting && event.target === event.currentTarget) {
           onClose();
         }
       }}
@@ -130,7 +172,8 @@ function VehicleFormModal({ vehicle, onClose }) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+            disabled={isSubmitting}
+            className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Close"
           >
             <X size={21} />
@@ -139,6 +182,13 @@ function VehicleFormModal({ vehicle, onClose }) {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6">
+          {success && (
+            <div className="mb-5 flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
+              <CheckCircle2 size={18} />
+              {success}
+            </div>
+          )}
+
           {error && (
             <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
               {error}
@@ -153,7 +203,6 @@ function VehicleFormModal({ vehicle, onClose }) {
               value={form.nickname}
               onChange={handleChange}
               placeholder="e.g. Daily Driver"
-              required
             />
 
             {/* Year */}
@@ -163,7 +212,9 @@ function VehicleFormModal({ vehicle, onClose }) {
               type="number"
               value={form.year}
               onChange={handleChange}
-              placeholder="2024"
+              placeholder={String(currentYear)}
+              min="1900"
+              max={currentYear}
               required
             />
 
@@ -294,21 +345,73 @@ function VehicleFormModal({ vehicle, onClose }) {
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              disabled={isSubmitting}
+              className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Cancel
             </button>
 
             <button
               type="submit"
-              className="rounded-xl bg-[#0261F3] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#0256D6]"
+              disabled={isSubmitting || Boolean(success)}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0261F3] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#0256D6] disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {isEditing ? "Save Changes" : "Add Vehicle"}
+              {isSubmitting && (
+                <LoaderCircle size={18} className="animate-spin" />
+              )}
+              {isSubmitting
+                ? isEditing
+                  ? "Saving..."
+                  : "Adding..."
+                : success
+                  ? "Saved"
+                  : isEditing
+                    ? "Save Changes"
+                    : "Add Vehicle"}
             </button>
           </div>
         </form>
       </div>
     </div>
+  );
+}
+
+function buildUpdatePayload(vehicle, form) {
+  const originalVehicleType =
+    vehicle.vehicleType || vehicle.type || "NORMAL_CAR";
+  const originalMileageUnit = (vehicle.mileageUnit || "mi").toUpperCase();
+  const fields = {
+    nickname: form.nickname,
+    make: form.make,
+    model: form.model,
+    year: Number(form.year),
+    licensePlate: form.licensePlate,
+    vehicleType: form.vehicleType,
+    fuelType: form.vehicleType === "EV" ? null : form.fuelType,
+    transmission: form.vehicleType === "EV" ? null : form.transmission,
+    color: form.color,
+    currentMileage: Number(form.mileage) || 0,
+    mileageUnit: form.mileageUnit.toUpperCase(),
+  };
+
+  const originalValues = {
+    nickname: vehicle.nickname || "",
+    make: vehicle.make,
+    model: vehicle.model,
+    year: Number(vehicle.year),
+    licensePlate: vehicle.licensePlate,
+    vehicleType: originalVehicleType,
+    fuelType: originalVehicleType === "EV" ? null : vehicle.fuelType,
+    transmission: originalVehicleType === "EV" ? null : vehicle.transmission,
+    color: vehicle.color,
+    currentMileage: Number(vehicle.mileage) || 0,
+    mileageUnit: originalMileageUnit,
+  };
+
+  return Object.fromEntries(
+    Object.entries(fields).filter(
+      ([field, value]) => value !== originalValues[field],
+    ),
   );
 }
 

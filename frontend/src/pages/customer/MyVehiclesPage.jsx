@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   Plus,
   CarFront,
@@ -17,13 +17,18 @@ import DeleteVehicleModal from "../../components/modals/DeleteVehicleModal";
 import { useVehicles } from "../../context/VehicleContext";
 
 function MyVehiclesPage() {
-  const { vehicles } = useVehicles();
+  const { vehicles, isLoading, error } = useVehicles();
+  const location = useLocation();
 
   const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState(null);
   const [deletingVehicle, setDeletingVehicle] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(
+    location.state?.successMessage || "",
+  );
 
   const handleAddVehicle = () => {
+    setSuccessMessage("");
     setEditingVehicle(null);
     setShowVehicleModal(true);
   };
@@ -41,6 +46,15 @@ function MyVehiclesPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <main className="mx-auto max-w-7xl px-5 py-8 lg:px-8 lg:py-10">
+        {successMessage && (
+          <div
+            className="mb-6 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700"
+            role="status"
+          >
+            {successMessage}
+          </div>
+        )}
+
         {/* Heading */}
         <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -63,8 +77,15 @@ function MyVehiclesPage() {
           </button>
         </div>
 
-        {/* Vehicle cards */}
-        {vehicles.length > 0 ? (
+        {isLoading ? (
+          <p className="py-16 text-center text-sm font-medium text-slate-500">
+            Loading vehicles...
+          </p>
+        ) : error ? (
+          <p className="py-16 text-center text-sm font-medium text-red-600">
+            {error}
+          </p>
+        ) : vehicles.length > 0 ? (
           <div className="grid gap-6 xl:grid-cols-2">
             {vehicles.map((vehicle) => (
               <VehicleCard
@@ -90,6 +111,10 @@ function MyVehiclesPage() {
         <DeleteVehicleModal
           vehicle={deletingVehicle}
           onClose={() => setDeletingVehicle(null)}
+          onDeleted={() => {
+            setDeletingVehicle(null);
+            setSuccessMessage("Vehicle deleted successfully.");
+          }}
         />
       )}
     </div>
@@ -157,7 +182,7 @@ function VehicleCard({ vehicle, onEdit, onDelete }) {
           value={`${vehicle.mileage.toLocaleString()} ${vehicle.mileageUnit}`}
         />
 
-        <InfoItem icon={Fuel} label="Fuel" value={vehicle.fuelType} />
+        <InfoItem icon={Fuel} label="Fuel" value={vehicle.fuelType || "N/A"} />
       </div>
 
       {/* Actions */}
@@ -173,8 +198,7 @@ function VehicleCard({ vehicle, onEdit, onDelete }) {
         <button
           type="button"
           onClick={onEdit}
-          disabled
-          className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-400"
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
         >
           <Pencil size={16} />
           Edit
@@ -183,8 +207,7 @@ function VehicleCard({ vehicle, onEdit, onDelete }) {
         <button
           type="button"
           onClick={onDelete}
-          disabled
-          className="inline-flex cursor-not-allowed items-center justify-center rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-slate-400"
+          className="inline-flex items-center justify-center rounded-xl border border-red-200 bg-white px-3 py-2.5 text-red-600 transition hover:bg-red-50"
           aria-label={`Delete ${vehicle.nickname}`}
         >
           <Trash2 size={17} />

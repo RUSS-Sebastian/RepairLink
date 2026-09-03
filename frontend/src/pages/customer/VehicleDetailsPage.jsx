@@ -116,8 +116,7 @@ function VehicleDetailsPage() {
               <button
                 type="button"
                 onClick={() => setShowEditModal(true)}
-                disabled
-                className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-400"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
                 <Pencil size={17} />
                 Edit
@@ -126,8 +125,7 @@ function VehicleDetailsPage() {
               <button
                 type="button"
                 onClick={() => setShowDeleteModal(true)}
-                disabled
-                className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-400"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700"
               >
                 <Trash2 size={17} />
                 Delete
@@ -183,7 +181,7 @@ function VehicleDetailsPage() {
             <DetailItem
               icon={Fuel}
               label="Fuel Type"
-              value={vehicle.fuelType}
+              value={vehicle.fuelType || "N/A"}
             />
 
             <DetailItem
@@ -291,7 +289,9 @@ function VehicleDetailsPage() {
           onClose={() => setShowDeleteModal(false)}
           onDeleted={() => {
             setShowDeleteModal(false);
-            navigate("/customer/vehicles");
+            navigate("/customer/vehicles", {
+              state: { successMessage: "Vehicle deleted successfully." },
+            });
           }}
         />
       )}

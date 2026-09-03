@@ -1,6 +1,7 @@
 package com.repairlink.backend.vehicle.service;
 
 import com.repairlink.backend.common.enums.FuelType;
+import com.repairlink.backend.common.enums.MileageUnit;
 import com.repairlink.backend.common.enums.TransmissionType;
 import com.repairlink.backend.common.enums.VehicleType;
 import com.repairlink.backend.common.exception.LicensePlateAlreadyExistsException;
@@ -31,6 +32,7 @@ public class VehicleService {
 
     private static final String DEFAULT_NICKNAME = "My Car";
     private static final long DEFAULT_MILEAGE = 0L;
+    private static final MileageUnit DEFAULT_MILEAGE_UNIT = MileageUnit.MI;
 
     private final VehicleRepository vehicleRepository;
     private final VehiclePlateHistoryRepository plateHistoryRepository;
@@ -92,6 +94,11 @@ public class VehicleService {
                         ? DEFAULT_MILEAGE
                         : request.currentMileage()
         );
+        vehicle.setMileageUnit(
+            request.mileageUnit() == null
+                ? DEFAULT_MILEAGE_UNIT
+                : request.mileageUnit()
+        );
 
         applyPowertrain(
                 vehicle,
@@ -132,6 +139,9 @@ public class VehicleService {
         }
         if (request.currentMileage() != null) {
             vehicle.setCurrentMileage(request.currentMileage());
+        }
+        if (request.mileageUnit() != null) {
+            vehicle.setMileageUnit(request.mileageUnit());
         }
 
         VehicleType nextVehicleType = request.vehicleType() == null
@@ -263,7 +273,7 @@ public class VehicleService {
             throw new IllegalArgumentException("Year is required.");
         }
 
-        int maximumYear = Year.now().getValue() + 1;
+        int maximumYear = Year.now().getValue();
         if (year > maximumYear) {
             throw new IllegalArgumentException(
                     "Year cannot be later than " + maximumYear + "."
@@ -310,7 +320,8 @@ public class VehicleService {
                 vehicle.getFuelType(),
                 vehicle.getTransmission(),
                 vehicle.getColor(),
-                vehicle.getCurrentMileage()
+                vehicle.getCurrentMileage(),
+                vehicle.getMileageUnit()
         );
     }
 
@@ -339,6 +350,7 @@ public class VehicleService {
                 vehicle.getTransmission(),
                 vehicle.getColor(),
                 vehicle.getCurrentMileage(),
+                vehicle.getMileageUnit(),
                 history,
                 vehicle.getCreatedAt(),
                 vehicle.getUpdatedAt()

@@ -208,6 +208,34 @@ class VehicleServiceTests {
     }
 
     @Test
+    void nextYearIsRejected() {
+        UUID ownerId = UUID.randomUUID();
+        when(userAccountRepository.findById(ownerId))
+                .thenReturn(Optional.of(new UserAccount()));
+
+        int nextYear = Year.now().getValue() + 1;
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> vehicleService.createVehicle(
+                        ownerId,
+                        new CreateVehicleRequest(
+                                null,
+                                "Toyota",
+                                "Corolla",
+                                nextYear,
+                                "SLV-4821",
+                                VehicleType.NORMAL_CAR,
+                                FuelType.PETROL,
+                                TransmissionType.AUTOMATIC,
+                                "Silver",
+                                0L
+                        )
+                )
+        );
+    }
+
+    @Test
     void anotherOwnersVehicleIsHiddenAsNotFound() {
         UUID ownerId = UUID.randomUUID();
         UUID vehicleId = UUID.randomUUID();

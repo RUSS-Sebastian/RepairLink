@@ -1,6 +1,7 @@
 package com.repairlink.backend.vehicle.dto;
 
 import com.repairlink.backend.common.enums.FuelType;
+import com.repairlink.backend.common.enums.MileageUnit;
 import com.repairlink.backend.common.enums.TransmissionType;
 import com.repairlink.backend.common.enums.VehicleType;
 
@@ -17,6 +18,7 @@ public record VehicleResponse(
         FuelType fuelType,
         TransmissionType transmission,
         String color,
-        Long currentMileage
+        Long currentMileage,
+        MileageUnit mileageUnit
 ) {
 }

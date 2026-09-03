@@ -1,6 +1,7 @@
 package com.repairlink.backend.vehicle.entity;
 
 import com.repairlink.backend.common.enums.FuelType;
+import com.repairlink.backend.common.enums.MileageUnit;
 import com.repairlink.backend.common.enums.TransmissionType;
 import com.repairlink.backend.common.enums.VehicleType;
 import com.repairlink.backend.security.auth.entity.UserAccount;
@@ -65,6 +66,10 @@ public class Vehicle {
 
     @Column(name = "current_mileage", nullable = false)
     private Long currentMileage;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "mileage_unit", nullable = false, length = 2)
+    private MileageUnit mileageUnit;
 
     @Column(name = "deleted_at")
     private Instant deletedAt;
@@ -180,6 +185,14 @@ public class Vehicle {
 
     public void setCurrentMileage(Long currentMileage) {
         this.currentMileage = currentMileage;
+    }
+
+    public MileageUnit getMileageUnit() {
+        return mileageUnit;
+    }
+
+    public void setMileageUnit(MileageUnit mileageUnit) {
+        this.mileageUnit = mileageUnit;
     }
 
     public Instant getDeletedAt() {

@@ -24,6 +24,7 @@ const EMPTY_PROFILE = {
   email: "",
   phone: "",
   memberSince: "",
+  vehicleCount: 0,
 };
 
 function ProfilePage() {
@@ -58,6 +59,7 @@ function ProfilePage() {
           email: response.email || "",
           phone: response.phone || "",
           memberSince: response.memberSince || "",
+          vehicleCount: response.vehicleCount ?? 0,
         };
 
         setProfile(nextProfile);
@@ -182,6 +184,7 @@ function ProfilePage() {
         email: response.email || "",
         phone: response.phone || "",
         memberSince: response.memberSince || profile.memberSince,
+        vehicleCount: response.vehicleCount ?? profile.vehicleCount,
       };
 
       setProfile(nextProfile);
@@ -280,7 +283,8 @@ function ProfilePage() {
                   Silver Member
                 </span>
                 <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                  2 Vehicles
+                  {profile.vehicleCount}{" "}
+                  {profile.vehicleCount === 1 ? "Vehicle" : "Vehicles"}
                 </span>
                 <span className="rounded-full bg-slate-100 px-2.5 py-1">
                   2 Services

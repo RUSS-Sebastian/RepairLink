@@ -1,6 +1,7 @@
 package com.repairlink.backend.vehicle.dto;
 
 import com.repairlink.backend.common.enums.FuelType;
+import com.repairlink.backend.common.enums.MileageUnit;
 import com.repairlink.backend.common.enums.TransmissionType;
 import com.repairlink.backend.common.enums.VehicleType;
 import jakarta.validation.constraints.Min;
@@ -46,6 +47,34 @@ public record CreateVehicleRequest(
         String color,
 
         @PositiveOrZero(message = "Current mileage cannot be negative.")
-        Long currentMileage
+        Long currentMileage,
+
+        MileageUnit mileageUnit
 ) {
+    public CreateVehicleRequest(
+            String nickname,
+            String make,
+            String model,
+            Integer year,
+            String licensePlate,
+            VehicleType vehicleType,
+            FuelType fuelType,
+            TransmissionType transmission,
+            String color,
+            Long currentMileage
+    ) {
+        this(
+                nickname,
+                make,
+                model,
+                year,
+                licensePlate,
+                vehicleType,
+                fuelType,
+                transmission,
+                color,
+                currentMileage,
+                null
+        );
+    }
 }
