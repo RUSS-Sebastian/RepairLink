@@ -7,6 +7,8 @@ function FormInput({
   placeholder,
   error,
   required = false,
+  maxLength,
+  helperText,
 }) {
   return (
     <div>
@@ -25,12 +27,17 @@ function FormInput({
         value={value}
         onChange={onChange}
         placeholder={placeholder}
+        maxLength={maxLength}
         className={`w-full rounded-xl border bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 ${
           error
             ? "border-red-400 focus:border-red-500"
             : "border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
         }`}
       />
+
+      {helperText && !error && (
+        <p className="mt-1.5 text-xs text-slate-500">{helperText}</p>
+      )}
 
       {error && (
         <p className="mt-1.5 text-xs font-medium text-red-500">{error}</p>

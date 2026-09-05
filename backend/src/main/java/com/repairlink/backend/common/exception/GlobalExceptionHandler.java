@@ -25,6 +25,24 @@ public class GlobalExceptionHandler {
                 .body(error);
     }
 
+    @ExceptionHandler(PartNotFoundException.class)
+    public ResponseEntity<ApiError> handlePartNotFound(
+            PartNotFoundException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                new ApiError("PART_NOT_FOUND", exception.getMessage())
+        );
+    }
+
+    @ExceptionHandler(PartNumberAlreadyExistsException.class)
+    public ResponseEntity<ApiError> handlePartNumberAlreadyExists(
+            PartNumberAlreadyExistsException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                new ApiError("PART_NUMBER_ALREADY_EXISTS", exception.getMessage())
+        );
+    }
+
     @ExceptionHandler(LicensePlateAlreadyExistsException.class)
     public ResponseEntity<ApiError> handleLicensePlateAlreadyExists(
             LicensePlateAlreadyExistsException exception

@@ -9,6 +9,7 @@ import VehicleDetailsPage from "../pages/customer/VehicleDetailsPage";
 
 import CustomerDashboardPage from "../pages/customer/CustomerDashboardPage";
 import ProfilePage from "../pages/customer/ProfilePage";
+import PartsPage from "../pages/admin/PartsPage";
 import AppLayout from "../layouts/AppLayout";
 import MainLayout from "../layouts/MainLayout";
 
@@ -155,7 +156,7 @@ function AppRoutes() {
         path={ROUTES.ADMIN_PARTS}
         element={
           <ProtectedAdminRoute>
-            <PagePlaceholder title="Parts" />
+            <PartsPage />
           </ProtectedAdminRoute>
         }
       />
