@@ -19,6 +19,8 @@ export const ROUTES = {
   ADMIN_LABOR_RATES: "/admin/labor-rates",
   ADMIN_ADDITIONAL_SERVICES: "/admin/additional-services",
   ADMIN_SCHEDULING: "/admin/scheduling",
+  ADMIN_SCHEDULING_DETAIL: "/admin/scheduling/:configurationId",
+  ADMIN_SCHEDULING_NEW: "/admin/scheduling/new",
   ADMIN_LOYALTY: "/admin/loyalty",
   ADMIN_NOTIFICATIONS: "/admin/notifications",
   ADMIN_AUDIT_LOG: "/admin/audit-log",

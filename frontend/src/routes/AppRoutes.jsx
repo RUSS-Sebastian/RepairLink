@@ -10,6 +10,7 @@ import VehicleDetailsPage from "../pages/customer/VehicleDetailsPage";
 import CustomerDashboardPage from "../pages/customer/CustomerDashboardPage";
 import ProfilePage from "../pages/customer/ProfilePage";
 import PartsPage from "../pages/admin/PartsPage";
+import SchedulePage from "../pages/admin/SchedulePage";
 import AppLayout from "../layouts/AppLayout";
 import MainLayout from "../layouts/MainLayout";
 
@@ -183,7 +184,25 @@ function AppRoutes() {
         path={ROUTES.ADMIN_SCHEDULING}
         element={
           <ProtectedAdminRoute>
-            <PagePlaceholder title="Scheduling" />
+            <SchedulePage />
+          </ProtectedAdminRoute>
+        }
+      />
+
+      <Route
+        path={ROUTES.ADMIN_SCHEDULING_NEW}
+        element={
+          <ProtectedAdminRoute>
+            <SchedulePage mode="create" />
+          </ProtectedAdminRoute>
+        }
+      />
+
+      <Route
+        path={ROUTES.ADMIN_SCHEDULING_DETAIL}
+        element={
+          <ProtectedAdminRoute>
+            <SchedulePage mode="detail" />
           </ProtectedAdminRoute>
         }
       />
