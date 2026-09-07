@@ -21,17 +21,39 @@ public interface ScheduleConfigurationRepository extends JpaRepository<ScheduleC
 
     Optional<ScheduleConfiguration> findFirstByStatusOrderByStartDateAsc(ScheduleStatus status);
 
-    @Query("""
-        SELECT c FROM ScheduleConfiguration c
-        WHERE (:dateFrom IS NULL OR c.endDate >= :dateFrom)
-          AND (:dateTo IS NULL OR c.startDate <= :dateTo)
-        ORDER BY c.startDate ASC
-    """)
-    Page<ScheduleConfiguration> findByDateRange(
-            @Param("dateFrom") LocalDate dateFrom,
-            @Param("dateTo") LocalDate dateTo,
+    Page<ScheduleConfiguration> findByEndDateGreaterThanEqualAndStartDateLessThanEqualOrderByStartDateAsc(
+            LocalDate dateFrom,
+            LocalDate dateTo,
             Pageable pageable
     );
+
+    Page<ScheduleConfiguration> findByEndDateGreaterThanEqualOrderByStartDateAsc(
+            LocalDate dateFrom,
+            Pageable pageable
+    );
+
+    Page<ScheduleConfiguration> findByStartDateLessThanEqualOrderByStartDateAsc(
+            LocalDate dateTo,
+            Pageable pageable
+    );
+
+    Page<ScheduleConfiguration> findAllByOrderByStartDateAsc(Pageable pageable);
+
+    default Page<ScheduleConfiguration> findByDateRange(
+            LocalDate dateFrom,
+            LocalDate dateTo,
+            Pageable pageable
+    ) {
+        if (dateFrom != null && dateTo != null) {
+            return findByEndDateGreaterThanEqualAndStartDateLessThanEqualOrderByStartDateAsc(dateFrom, dateTo, pageable);
+        } else if (dateFrom != null) {
+            return findByEndDateGreaterThanEqualOrderByStartDateAsc(dateFrom, pageable);
+        } else if (dateTo != null) {
+            return findByStartDateLessThanEqualOrderByStartDateAsc(dateTo, pageable);
+        } else {
+            return findAllByOrderByStartDateAsc(pageable);
+        }
+    }
 
     @Query("""
         SELECT c FROM ScheduleConfiguration c
@@ -41,28 +63,38 @@ public interface ScheduleConfigurationRepository extends JpaRepository<ScheduleC
     List<ScheduleConfiguration> findConfigurationsForDate(@Param("date") LocalDate date);
 
     @Query("""
-        SELECT COUNT(c) > 0 FROM ScheduleConfiguration c
+        SELECT c FROM ScheduleConfiguration c
         WHERE c.status IN (com.repairlink.backend.schedule.entity.ScheduleStatus.CURRENT, com.repairlink.backend.schedule.entity.ScheduleStatus.UPCOMING)
-          AND (:excludeId IS NULL OR c.configurationId != :excludeId)
-          AND (c.startDate <= :endDate AND c.endDate >= :startDate)
+          AND c.startDate <= :endDate AND c.endDate >= :startDate
+        ORDER BY c.startDate ASC
     """)
-    boolean existsOverlappingWindow(
+    List<ScheduleConfiguration> findOverlappingConfigurations(
             @Param("startDate") LocalDate startDate,
-            @Param("endDate") LocalDate endDate,
-            @Param("excludeId") UUID excludeId
+            @Param("endDate") LocalDate endDate
     );
 
     @Query("""
         SELECT c FROM ScheduleConfiguration c
         WHERE c.status IN (com.repairlink.backend.schedule.entity.ScheduleStatus.CURRENT, com.repairlink.backend.schedule.entity.ScheduleStatus.UPCOMING)
-          AND (:excludeId IS NULL OR c.configurationId != :excludeId)
-          AND (c.startDate <= :endDate AND c.endDate >= :startDate)
+          AND c.configurationId != :excludeId
+          AND c.startDate <= :endDate AND c.endDate >= :startDate
         ORDER BY c.startDate ASC
     """)
-    List<ScheduleConfiguration> findOverlappingConfigurations(
+    List<ScheduleConfiguration> findOverlappingConfigurationsExcluding(
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate,
             @Param("excludeId") UUID excludeId
     );
+
+    default List<ScheduleConfiguration> findOverlappingConfigurations(
+            LocalDate startDate,
+            LocalDate endDate,
+            UUID excludeId
+    ) {
+        if (excludeId != null) {
+            return findOverlappingConfigurationsExcluding(startDate, endDate, excludeId);
+        }
+        return findOverlappingConfigurations(startDate, endDate);
+    }
 }
 

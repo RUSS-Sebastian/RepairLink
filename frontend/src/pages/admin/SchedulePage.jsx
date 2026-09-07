@@ -628,13 +628,30 @@ function ScheduleDetail({ configurationId, navigate }) {
     }
   };
 
+  const newBlockDateConflict = useMemo(() => {
+    if (!newBlockDate) return null;
+    const isAlreadyBlocked = (configuration.blockedDates || []).some(
+      (item) => item.blockedDate === newBlockDate,
+    );
+    if (isAlreadyBlocked) {
+      return `Date ${formatDate(newBlockDate)} is already blocked in this schedule.`;
+    }
+    if (newBlockDate < TODAY) {
+      return "Only future dates can be blocked.";
+    }
+    if (configuration.endDate && newBlockDate > configuration.endDate) {
+      return `Date cannot be after the schedule end date (${formatDate(configuration.endDate)}).`;
+    }
+    return null;
+  }, [newBlockDate, configuration.blockedDates, configuration.endDate]);
+
   const handleAddBlock = async () => {
-    if (!newBlockDate || !newBlockReason) return;
+    if (!newBlockDate || !newBlockReason.trim() || newBlockDateConflict) return;
     try {
       setIsAddingBlock(true);
       await addBlockedDate(configuration.configurationId, {
         blockedDate: newBlockDate,
-        reason: newBlockReason,
+        reason: newBlockReason.trim(),
       });
       setNewBlockDate("");
       setNewBlockReason("");
@@ -724,8 +741,13 @@ function ScheduleDetail({ configurationId, navigate }) {
             <button
               type="button"
               onClick={handleAddBlock}
-              disabled={isAddingBlock || !newBlockDate || !newBlockReason}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#0261F3] px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+              disabled={
+                isAddingBlock ||
+                !newBlockDate ||
+                !newBlockReason.trim() ||
+                Boolean(newBlockDateConflict)
+              }
+              className="inline-flex items-center gap-2 rounded-xl bg-[#0261F3] px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isAddingBlock && (
                 <LoaderCircle size={14} className="animate-spin" />
@@ -733,6 +755,12 @@ function ScheduleDetail({ configurationId, navigate }) {
               Add date
             </button>
           </div>
+          {newBlockDateConflict && (
+            <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-rose-600">
+              <AlertCircle size={14} className="shrink-0" />
+              {newBlockDateConflict}
+            </p>
+          )}
         </section>
       )}
 
@@ -1083,9 +1111,62 @@ function ConfigurationWizard({ navigate }) {
         : [...current.operatingDays, day],
     }));
 
+  const breakConflict = useMemo(() => {
+    if (!breakStart || !breakEnd) return null;
+    if (breakStart >= breakEnd) {
+      return "Break end time must be later than start time.";
+    }
+    if (form.openingTime && breakStart < form.openingTime) {
+      return `Break cannot start before opening time (${form.openingTime}).`;
+    }
+    if (form.closingTime && breakEnd > form.closingTime) {
+      return `Break cannot end after closing time (${form.closingTime}).`;
+    }
+    const dayBreaks = form.breaks.filter(
+      (b) => b.dayOfWeek.toUpperCase() === breakDay.toUpperCase(),
+    );
+    const overlapping = dayBreaks.find(
+      (b) => breakStart < b.endTime && breakEnd > b.startTime,
+    );
+    if (overlapping) {
+      if (
+        overlapping.startTime === breakStart &&
+        overlapping.endTime === breakEnd
+      ) {
+        return `A break for ${breakDay} from ${overlapping.startTime} to ${overlapping.endTime} has already been added.`;
+      }
+      return `Overlaps with an existing break on ${breakDay} (${overlapping.startTime} – ${overlapping.endTime}).`;
+    }
+    return null;
+  }, [
+    breakDay,
+    breakStart,
+    breakEnd,
+    form.breaks,
+    form.openingTime,
+    form.closingTime,
+  ]);
+
+  const blockedDateConflict = useMemo(() => {
+    if (!blockedDate) return null;
+    const isAlreadyBlocked = form.blockedDates.some(
+      (item) => item.blockedDate === blockedDate,
+    );
+    if (isAlreadyBlocked) {
+      return `Date ${formatDate(blockedDate)} has already been added to the blocked list.`;
+    }
+    if (form.startDate && blockedDate < form.startDate) {
+      return `Date cannot be before schedule start date (${formatDate(form.startDate)}).`;
+    }
+    if (calculatedEnd && blockedDate > calculatedEnd) {
+      return `Date cannot be after schedule end date (${formatDate(calculatedEnd)}).`;
+    }
+    return null;
+  }, [blockedDate, form.blockedDates, form.startDate, calculatedEnd]);
+
   const addBreak = () => {
-    if (!breakStart || !breakEnd || breakStart >= breakEnd) {
-      alert("Break end time must be later than start time.");
+    if (breakConflict || !breakStart || !breakEnd) {
+      if (breakConflict) alert(breakConflict);
       return;
     }
     setForm((current) => ({
@@ -1103,22 +1184,19 @@ function ConfigurationWizard({ navigate }) {
   };
 
   const addBlocked = () => {
-    if (
-      blockedDate &&
-      blockedReason &&
-      blockedDate >= form.startDate &&
-      blockedDate <= calculatedEnd
-    ) {
-      setForm((current) => ({
-        ...current,
-        blockedDates: [
-          ...current.blockedDates,
-          { blockedDate, reason: blockedReason },
-        ],
-      }));
-      setBlockedDate("");
-      setBlockedReason("");
+    if (blockedDateConflict || !blockedDate || !blockedReason.trim()) {
+      if (blockedDateConflict) alert(blockedDateConflict);
+      return;
     }
+    setForm((current) => ({
+      ...current,
+      blockedDates: [
+        ...current.blockedDates,
+        { blockedDate, reason: blockedReason.trim() },
+      ],
+    }));
+    setBlockedDate("");
+    setBlockedReason("");
   };
 
   const submit = async () => {
@@ -1315,11 +1393,18 @@ function ConfigurationWizard({ navigate }) {
               <button
                 type="button"
                 onClick={addBreak}
-                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 hover:border-blue-300 hover:text-[#0261F3]"
+                disabled={Boolean(breakConflict) || !breakStart || !breakEnd}
+                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 hover:border-blue-300 hover:text-[#0261F3] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Add break
               </button>
             </div>
+            {breakConflict && (
+              <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-rose-600">
+                <AlertCircle size={14} className="shrink-0" />
+                {breakConflict}
+              </p>
+            )}
             <div className="mt-3 space-y-2">
               {form.breaks.map((item, index) => (
                 <div
@@ -1397,11 +1482,22 @@ function ConfigurationWizard({ navigate }) {
               <button
                 type="button"
                 onClick={addBlocked}
-                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 hover:border-blue-300 hover:text-[#0261F3]"
+                disabled={
+                  Boolean(blockedDateConflict) ||
+                  !blockedDate ||
+                  !blockedReason.trim()
+                }
+                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 hover:border-blue-300 hover:text-[#0261F3] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Add date
               </button>
             </div>
+            {blockedDateConflict && (
+              <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-rose-600">
+                <AlertCircle size={14} className="shrink-0" />
+                {blockedDateConflict}
+              </p>
+            )}
             {form.blockedDates.map((item, index) => (
               <div
                 key={`${item.blockedDate}-${index}`}

@@ -196,13 +196,25 @@ public class ScheduleService {
         config.setUpdatedBy(adminUser);
 
         if (request.breaks() != null) {
+            Map<String, List<ScheduleBreakDto>> breaksByDay = new HashMap<>();
             for (ScheduleBreakDto breakDto : request.breaks()) {
                 if (!breakDto.endTime().isAfter(breakDto.startTime())) {
                     throw new IllegalArgumentException("Break end time must be after start time: " + breakDto.startTime() + " - " + breakDto.endTime());
                 }
+                if (breakDto.startTime().isBefore(request.openingTime()) || breakDto.endTime().isAfter(request.closingTime())) {
+                    throw new IllegalArgumentException("Break time (" + breakDto.startTime() + " - " + breakDto.endTime() + ") must be within operating hours (" + request.openingTime() + " - " + request.closingTime() + ").");
+                }
+                String day = breakDto.dayOfWeek().toUpperCase();
+                List<ScheduleBreakDto> dayList = breaksByDay.computeIfAbsent(day, k -> new ArrayList<>());
+                for (ScheduleBreakDto existing : dayList) {
+                    if (breakDto.startTime().isBefore(existing.endTime()) && breakDto.endTime().isAfter(existing.startTime())) {
+                        throw new IllegalArgumentException("Break times on " + day + " overlap: (" + breakDto.startTime() + " - " + breakDto.endTime() + ") conflicts with (" + existing.startTime() + " - " + existing.endTime() + ").");
+                    }
+                }
+                dayList.add(breakDto);
                 ScheduleBreak sb = new ScheduleBreak(
                         config,
-                        breakDto.dayOfWeek().toUpperCase(),
+                        day,
                         breakDto.startTime(),
                         breakDto.endTime(),
                         breakDto.label()
@@ -212,7 +224,11 @@ public class ScheduleService {
         }
 
         if (request.blockedDates() != null) {
+            Set<LocalDate> seenDates = new HashSet<>();
             for (ScheduleBlockedDateRequest bd : request.blockedDates()) {
+                if (!seenDates.add(bd.blockedDate())) {
+                    throw new IllegalArgumentException("Duplicate blocked date: " + bd.blockedDate());
+                }
                 if (bd.blockedDate().isBefore(request.startDate()) || bd.blockedDate().isAfter(calculatedEnd)) {
                     throw new IllegalArgumentException("Blocked date " + bd.blockedDate() + " must fall within the configuration window (" + request.startDate() + " to " + calculatedEnd + ").");
                 }
