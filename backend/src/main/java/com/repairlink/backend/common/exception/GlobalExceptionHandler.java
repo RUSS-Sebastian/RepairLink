@@ -11,6 +11,42 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(AdditionalServiceNotFoundException.class)
+    public ResponseEntity<ApiError> handleAdditionalServiceNotFound(
+            AdditionalServiceNotFoundException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                new ApiError("ADDITIONAL_SERVICE_NOT_FOUND", exception.getMessage())
+        );
+    }
+
+    @ExceptionHandler(AdditionalServiceNameAlreadyExistsException.class)
+    public ResponseEntity<ApiError> handleAdditionalServiceNameAlreadyExists(
+            AdditionalServiceNameAlreadyExistsException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                new ApiError("ADDITIONAL_SERVICE_NAME_ALREADY_EXISTS", exception.getMessage())
+        );
+    }
+
+    @ExceptionHandler(LoyaltyRankNotFoundException.class)
+    public ResponseEntity<ApiError> handleLoyaltyRankNotFound(
+            LoyaltyRankNotFoundException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                new ApiError("LOYALTY_RANK_NOT_FOUND", exception.getMessage())
+        );
+    }
+
+    @ExceptionHandler(LoyaltyRankNameAlreadyExistsException.class)
+    public ResponseEntity<ApiError> handleLoyaltyRankNameAlreadyExists(
+            LoyaltyRankNameAlreadyExistsException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                new ApiError("LOYALTY_RANK_NAME_ALREADY_EXISTS", exception.getMessage())
+        );
+    }
+
     @ExceptionHandler(VehicleNotFoundException.class)
     public ResponseEntity<ApiError> handleVehicleNotFound(
             VehicleNotFoundException exception
