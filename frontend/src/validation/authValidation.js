@@ -92,3 +92,34 @@ export function validateProfileUpdate(changes) {
 
   return errors;
 }
+
+export function validatePasswordChange(values) {
+  const errors = {};
+
+  if (!values.currentPassword) {
+    errors.currentPassword = "Current password is required.";
+  }
+
+  if (!values.newPassword) {
+    errors.newPassword = "New password is required.";
+  } else if (values.newPassword.length < 8) {
+    errors.newPassword = "Password must be at least 8 characters.";
+  } else if (!/[A-Z]/.test(values.newPassword)) {
+    errors.newPassword = "Password must contain at least one uppercase letter.";
+  } else if (!/[a-z]/.test(values.newPassword)) {
+    errors.newPassword = "Password must contain at least one lowercase letter.";
+  } else if (!/[0-9]/.test(values.newPassword)) {
+    errors.newPassword = "Password must contain at least one number.";
+  } else if (!/[!@#$%^&*()_\-+={[\]}|\\:;"'<,>.?/]/.test(values.newPassword)) {
+    errors.newPassword =
+      "Password must contain at least one special character.";
+  }
+
+  if (!values.confirmPassword) {
+    errors.confirmPassword = "Please confirm your new password.";
+  } else if (values.newPassword !== values.confirmPassword) {
+    errors.confirmPassword = "Passwords do not match.";
+  }
+
+  return errors;
+}

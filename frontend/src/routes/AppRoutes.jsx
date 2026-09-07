@@ -8,9 +8,11 @@ import MyVehiclesPage from "../pages/customer/MyVehiclesPage";
 import VehicleDetailsPage from "../pages/customer/VehicleDetailsPage";
 
 import CustomerDashboardPage from "../pages/customer/CustomerDashboardPage";
+import ServiceRequestPage from "../pages/customer/ServiceRequestPage";
 import ProfilePage from "../pages/customer/ProfilePage";
 import PartsPage from "../pages/admin/PartsPage";
 import SchedulePage from "../pages/admin/SchedulePage";
+import AdminProfilePage from "../pages/admin/AdminProfilePage";
 import AppLayout from "../layouts/AppLayout";
 import MainLayout from "../layouts/MainLayout";
 
@@ -76,7 +78,7 @@ function AppRoutes() {
         path={ROUTES.SERVICE_REQUEST}
         element={
           <ProtectedCustomerRoute>
-            <PagePlaceholder title="Service Request" />
+            <ServiceRequestPage />
           </ProtectedCustomerRoute>
         }
       />
@@ -238,7 +240,7 @@ function AppRoutes() {
         path={ROUTES.ADMIN_PROFILE}
         element={
           <ProtectedAdminRoute>
-            <PagePlaceholder title="Admin Profile" />
+            <AdminProfilePage />
           </ProtectedAdminRoute>
         }
       />

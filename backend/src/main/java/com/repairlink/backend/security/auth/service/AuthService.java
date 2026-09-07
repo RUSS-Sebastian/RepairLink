@@ -6,6 +6,8 @@ import com.repairlink.backend.common.exception.EmailAlreadyExistsException;
 import com.repairlink.backend.common.exception.InvalidCredentialsException;
 import com.repairlink.backend.common.exception.PhoneAlreadyExistsException;
 import com.repairlink.backend.security.auth.dto.CustomerProfileResponse;
+import com.repairlink.backend.security.auth.dto.AdminProfileResponse;
+import com.repairlink.backend.security.auth.dto.ChangePasswordRequest;
 import com.repairlink.backend.security.auth.dto.LoginRequest;
 import com.repairlink.backend.security.auth.dto.LoginResponse;
 import com.repairlink.backend.security.auth.dto.SignupRequest;
@@ -274,6 +276,157 @@ public class AuthService {
                 vehicleRepository.countByOwnerUserIdAndDeletedAtIsNull(userId)
         );
     }
+
+        @Transactional(readOnly = true)
+        public AdminProfileResponse getCurrentAdminProfile(UUID userId) {
+                UserAccount user = findUser(userId);
+                requireRole(userId, RoleCode.ADMIN, "Only admins can access this profile endpoint.");
+
+                return toAdminProfileResponse(user);
+        }
+
+        @Transactional
+        public AdminProfileResponse updateCurrentAdminProfile(
+                        UUID userId,
+                        UpdateCustomerProfileRequest request
+        ) {
+                UserAccount user = findUser(userId);
+                requireRole(userId, RoleCode.ADMIN, "Only admins can update this profile.");
+
+                String nextFullName = request.fullName() == null
+                                ? user.getFullName()
+                                : normalizeFullName(request.fullName());
+                String nextEmail = request.email() == null
+                                ? user.getEmail()
+                                : normalizeEmail(request.email());
+                String nextPhone = request.phone() == null
+                                ? user.getPhone()
+                                : request.phone().trim();
+
+                if (request.fullName() != null && nextFullName.isBlank()) {
+                        throw new IllegalArgumentException("Full name cannot be blank.");
+                }
+                if (request.email() != null && nextEmail.isBlank()) {
+                        throw new IllegalArgumentException("Email cannot be blank.");
+                }
+                if (request.phone() != null && nextPhone.isBlank()) {
+                        throw new IllegalArgumentException("Phone number cannot be blank.");
+                }
+                if (request.email() != null && !nextEmail.equalsIgnoreCase(user.getEmail())
+                                && userAccountRepository.existsByEmailIgnoreCaseAndUserIdNot(nextEmail, userId)) {
+                        throw new EmailAlreadyExistsException();
+                }
+                if (request.phone() != null && !nextPhone.equalsIgnoreCase(user.getPhone())
+                                && userAccountRepository.existsByPhoneAndUserIdNot(nextPhone, userId)) {
+                        throw new PhoneAlreadyExistsException();
+                }
+
+                user.setFullName(nextFullName);
+                user.setEmail(nextEmail);
+                user.setPhone(nextPhone);
+
+                return toAdminProfileResponse(userAccountRepository.save(user));
+        }
+
+        @Transactional
+        public void changeAdminPassword(UUID userId, ChangePasswordRequest request) {
+                UserAccount user = findUser(userId);
+                requireRole(userId, RoleCode.ADMIN, "Only admins can change this password.");
+                changePassword(user, request);
+        }
+
+    @Transactional
+    public void changeCustomerPassword(
+            UUID userId,
+            ChangePasswordRequest request
+    ) {
+        UserAccount user = findUser(userId);
+
+        boolean isCustomer = userRoleRepository
+                .findAllByUserUserIdAndActiveTrue(userId)
+                .stream()
+                .map(UserRole::getRole)
+                .map(Role::getRoleCode)
+                .anyMatch(RoleCode.CUSTOMER::equals);
+
+        if (!isCustomer) {
+            throw new IllegalStateException(
+                    "Only customers can change this password."
+            );
+        }
+
+        if (!passwordEncoder.matches(
+                request.currentPassword(),
+                user.getPasswordHash()
+        )) {
+            throw new InvalidCredentialsException();
+        }
+
+        if (!request.newPassword().equals(request.confirmPassword())) {
+            throw new IllegalArgumentException(
+                    "New password and confirmation must match."
+            );
+        }
+
+        if (passwordEncoder.matches(
+                request.newPassword(),
+                user.getPasswordHash()
+        )) {
+            throw new IllegalArgumentException(
+                    "New password must be different from your current password."
+            );
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        userAccountRepository.save(user);
+    }
+
+        private UserAccount findUser(UUID userId) {
+                return userAccountRepository
+                                .findById(userId)
+                                .orElseThrow(() -> new IllegalStateException(
+                                                "Authenticated user no longer exists."
+                                ));
+        }
+
+        private void requireRole(UUID userId, RoleCode requiredRole, String message) {
+                boolean hasRole = userRoleRepository
+                                .findAllByUserUserIdAndActiveTrue(userId)
+                                .stream()
+                                .map(UserRole::getRole)
+                                .map(Role::getRoleCode)
+                                .anyMatch(requiredRole::equals);
+
+                if (!hasRole) {
+                        throw new IllegalStateException(message);
+                }
+        }
+
+        private void changePassword(UserAccount user, ChangePasswordRequest request) {
+                if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+                        throw new InvalidCredentialsException();
+                }
+                if (!request.newPassword().equals(request.confirmPassword())) {
+                        throw new IllegalArgumentException("New password and confirmation must match.");
+                }
+                if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {
+                        throw new IllegalArgumentException(
+                                        "New password must be different from your current password."
+                        );
+                }
+
+                user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+                userAccountRepository.save(user);
+        }
+
+        private AdminProfileResponse toAdminProfileResponse(UserAccount user) {
+                return new AdminProfileResponse(
+                                user.getFullName(),
+                                user.getEmail(),
+                                user.getPhone(),
+                                formatMemberSince(user.getCreatedAt())
+                );
+        }
 
     private UserResponse toUserResponse(
             UserAccount user,

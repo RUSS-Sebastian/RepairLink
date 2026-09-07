@@ -154,6 +154,7 @@ function SignupPage() {
         <FormInput
           label="Full name"
           name="name"
+          autoComplete="name"
           placeholder="Your full name"
           value={values.name}
           onChange={handleChange}
@@ -165,6 +166,7 @@ function SignupPage() {
           label="Email address"
           name="email"
           type="email"
+          autoComplete="email"
           placeholder="you@example.com"
           value={values.email}
           onChange={handleChange}
@@ -192,6 +194,7 @@ function SignupPage() {
           label="Password"
           name="password"
           type="password"
+          autoComplete="new-password"
           placeholder="At least 8 characters"
           value={values.password}
           onChange={handleChange}
@@ -203,6 +206,7 @@ function SignupPage() {
           label="Confirm password"
           name="confirmPassword"
           type="password"
+          autoComplete="new-password"
           placeholder="Repeat your password"
           value={values.confirmPassword}
           onChange={handleChange}

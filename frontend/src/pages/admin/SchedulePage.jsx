@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
+  AlertCircle,
   ArrowLeft,
   ArrowRight,
   Ban,
@@ -11,18 +12,25 @@ import {
   Clock3,
   Eye,
   Info,
+  LoaderCircle,
   LockKeyhole,
   Plus,
-  Search,
   Settings2,
   Trash2,
-  Users,
   X,
 } from "lucide-react";
 
 import { ROUTES } from "../../constants/routes";
+import {
+  addBlockedDate,
+  createScheduleConfiguration,
+  deleteScheduleConfiguration,
+  getScheduleConfiguration,
+  listScheduleConfigurations,
+  removeBlockedDate,
+} from "../../features/schedule/scheduleApi";
 
-const TODAY = "2026-09-05";
+const TODAY = new Date().toISOString().slice(0, 10);
 const PAGE_SIZE = 4;
 const WEEKDAYS = [
   "Monday",
@@ -35,205 +43,120 @@ const WEEKDAYS = [
 ];
 const SHORT_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-const INITIAL_CONFIGURATIONS = [
-  {
-    id: "config-1",
-    name: "Config 1",
-    startDate: "2026-08-01",
-    endDate: "2026-08-31",
-    bookingWindow: 30,
-    operatingDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-    opening: "08:00",
-    closing: "17:00",
-    breaks: [{ day: "Monday", start: "12:00", end: "13:00" }],
-    capacity: 4,
-    hold: 15,
-    cancellation: 24,
-    duration: 60,
-    blockedDates: [{ date: "2026-08-17", reason: "Public holiday" }],
-    status: "Completed",
-  },
-  {
-    id: "config-2",
-    name: "Config 2",
-    startDate: "2026-09-01",
-    endDate: "2026-09-30",
-    bookingWindow: 30,
-    operatingDays: [
-      "Monday",
-      "Tuesday",
-      "Wednesday",
-      "Thursday",
-      "Friday",
-      "Saturday",
-    ],
-    opening: "08:00",
-    closing: "18:00",
-    breaks: [
-      { day: "Monday", start: "12:00", end: "13:00" },
-      { day: "Tuesday", start: "12:00", end: "13:00" },
-      { day: "Wednesday", start: "12:00", end: "13:00" },
-      { day: "Thursday", start: "12:00", end: "13:00" },
-      { day: "Friday", start: "12:00", end: "13:00" },
-    ],
-    capacity: 6,
-    hold: 20,
-    cancellation: 24,
-    duration: 60,
-    blockedDates: [{ date: "2026-09-14", reason: "Team training" }],
-    status: "Current",
-  },
-  {
-    id: "config-3",
-    name: "Config 3",
-    startDate: "2026-10-01",
-    endDate: "2026-10-31",
-    bookingWindow: 31,
-    operatingDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-    opening: "09:00",
-    closing: "17:00",
-    breaks: [{ day: "Wednesday", start: "12:30", end: "13:30" }],
-    capacity: 5,
-    hold: 15,
-    cancellation: 48,
-    duration: 45,
-    blockedDates: [{ date: "2026-10-12", reason: "Workshop maintenance" }],
-    status: "Upcoming",
-  },
-  {
-    id: "config-4",
-    name: "Config 4",
-    startDate: "2026-11-01",
-    endDate: "2026-11-30",
-    bookingWindow: 30,
-    operatingDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-    opening: "08:30",
-    closing: "17:30",
-    breaks: [{ day: "Friday", start: "12:00", end: "13:00" }],
-    capacity: 5,
-    hold: 15,
-    cancellation: 24,
-    duration: 60,
-    blockedDates: [],
-    status: "Upcoming",
-  },
-  {
-    id: "config-5",
-    name: "Config 5",
-    startDate: "2026-12-01",
-    endDate: "2026-12-31",
-    bookingWindow: 31,
-    operatingDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-    opening: "08:00",
-    closing: "16:00",
-    breaks: [],
-    capacity: 4,
-    hold: 15,
-    cancellation: 24,
-    duration: 60,
-    blockedDates: [],
-    status: "Upcoming",
-  },
-];
-
-const formatDate = (date) =>
-  new Intl.DateTimeFormat("en-US", {
+const formatDate = (date) => {
+  if (!date) return "";
+  return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
   }).format(new Date(`${date}T12:00:00`));
-const formatShortDate = (date) =>
-  new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(
-    new Date(`${date}T12:00:00`),
-  );
+};
+
+const formatShortDate = (date) => {
+  if (!date) return "None";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+  }).format(new Date(`${date}T12:00:00`));
+};
+
 const toDateInput = (date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
 const timeToMinutes = (value) => {
   const [hours, minutes] = value.split(":").map(Number);
   return hours * 60 + minutes;
 };
+
 const minutesToTime = (value) =>
   `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
+
 const getSlots = (configuration, day) => {
+  if (
+    !configuration ||
+    !configuration.openingTime ||
+    !configuration.closingTime
+  )
+    return [];
   const slots = [];
-  const opening = timeToMinutes(configuration.opening);
-  const closing = timeToMinutes(configuration.closing);
-  const dayBreaks = configuration.breaks
-    .filter((item) => item.day === day)
+  const opening = timeToMinutes(configuration.openingTime.slice(0, 5));
+  const closing = timeToMinutes(configuration.closingTime.slice(0, 5));
+  const dayBreaks = (configuration.breaks || [])
+    .filter((item) => item.dayOfWeek.toUpperCase() === day.toUpperCase())
     .sort(
       (first, second) =>
-        timeToMinutes(first.start) - timeToMinutes(second.start),
+        timeToMinutes(first.startTime.slice(0, 5)) -
+        timeToMinutes(second.startTime.slice(0, 5)),
     );
-  const showOccupancy = configuration.status !== "Upcoming";
+
   let start = opening;
+  const duration = Number(configuration.slotDurationMinutes || 60);
+
   while (start < closing) {
     const breakPeriod = dayBreaks.find((item) => {
-      const breakStart = timeToMinutes(item.start);
-      const breakEnd = timeToMinutes(item.end);
+      const breakStart = timeToMinutes(item.startTime.slice(0, 5));
+      const breakEnd = timeToMinutes(item.endTime.slice(0, 5));
       return start >= breakStart && start < breakEnd;
     });
+
     const nextBreak = dayBreaks.find(
       (item) =>
-        timeToMinutes(item.start) > start &&
-        timeToMinutes(item.start) < start + Number(configuration.duration),
+        timeToMinutes(item.startTime.slice(0, 5)) > start &&
+        timeToMinutes(item.startTime.slice(0, 5)) < start + duration,
     );
+
     if (nextBreak) {
-      const nextBreakStart = timeToMinutes(nextBreak.start);
+      const nextBreakStart = timeToMinutes(nextBreak.startTime.slice(0, 5));
       slots.push({
         label: `${minutesToTime(start)} – ${minutesToTime(nextBreakStart)}`,
-        booked: 0,
-        held: 0,
-        users: [],
+        isBreak: false,
       });
       start = nextBreakStart;
       continue;
     }
+
     if (breakPeriod) {
       slots.push({
-        label: `${breakPeriod.start} – ${breakPeriod.end}`,
+        label: `${breakPeriod.startTime.slice(0, 5)} – ${breakPeriod.endTime.slice(0, 5)}`,
         isBreak: true,
-        booked: 0,
-        held: 0,
-        users: [],
       });
-      start = timeToMinutes(breakPeriod.end);
+      start = timeToMinutes(breakPeriod.endTime.slice(0, 5));
       continue;
     }
-    const end = Math.min(start + Number(configuration.duration), closing);
-    const booked = showOccupancy
-      ? (start * 3 + day.length) % (configuration.capacity + 1)
-      : 0;
+
+    const end = Math.min(start + duration, closing);
     slots.push({
       label: `${minutesToTime(start)} – ${minutesToTime(end)}`,
-      booked,
-      held: showOccupancy && booked === 0 ? 1 : 0,
-      users: showOccupancy
-        ? ["Ava Thompson", "Marcus Lee", "Noah Williams", "Sophia Chen"].slice(
-            0,
-            booked,
-          )
-        : [],
+      isBreak: false,
     });
-        start = end;
+    start = end;
   }
   return slots;
 };
 
 function StatusPill({ status }) {
   const styles = {
-    Current: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    Completed: "border-slate-200 bg-slate-100 text-slate-600",
-    Upcoming: "border-blue-200 bg-blue-50 text-blue-700",
+    CURRENT: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    COMPLETED: "border-slate-200 bg-slate-100 text-slate-600",
+    UPCOMING: "border-blue-200 bg-blue-50 text-blue-700",
     Closed: "border-slate-200 bg-slate-100 text-slate-500",
     Available: "bg-emerald-50 text-emerald-700",
-    Full: "bg-rose-50 text-rose-700",
     Break: "bg-amber-50 text-amber-700",
   };
+  const normalized = status ? status.toUpperCase() : "UPCOMING";
+  const label =
+    normalized === "CURRENT"
+      ? "Current"
+      : normalized === "COMPLETED"
+        ? "Completed"
+        : normalized === "UPCOMING"
+          ? "Upcoming"
+          : status;
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${styles[status] || styles.Upcoming}`}
+      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${styles[normalized] || styles[status] || styles.UPCOMING}`}
     >
-      {status}
+      {label}
     </span>
   );
 }
@@ -259,51 +182,81 @@ function Field({ label, value, onChange, type = "text", min, disabled }) {
 function SchedulePage({ mode = "list" }) {
   const navigate = useNavigate();
   const { configurationId } = useParams();
-  const [configurations, setConfigurations] = useState(INITIAL_CONFIGURATIONS);
-  const configuration =
-    configurations.find((item) => item.id === configurationId) ||
-    configurations[1];
 
-  if (mode === "detail")
+  if (mode === "detail") {
     return (
-      <ScheduleDetail
-        configuration={configuration}
-        setConfigurations={setConfigurations}
-        navigate={navigate}
-      />
+      <ScheduleDetail configurationId={configurationId} navigate={navigate} />
     );
-  if (mode === "create")
-    return (
-      <ConfigurationWizard
-        configurations={configurations}
-        setConfigurations={setConfigurations}
-        navigate={navigate}
-      />
-    );
-  return (
-    <ScheduleHistory
-      configurations={configurations}
-      setConfigurations={setConfigurations}
-      navigate={navigate}
-    />
-  );
+  }
+  if (mode === "create") {
+    return <ConfigurationWizard navigate={navigate} />;
+  }
+  return <ScheduleHistory navigate={navigate} />;
 }
 
-function ScheduleHistory({ configurations, setConfigurations, navigate }) {
+function ScheduleHistory({ navigate }) {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [data, setData] = useState({
+    metrics: {
+      totalConfigurations: 0,
+      currentWindowName: "None",
+      nextOpeningDate: null,
+    },
+    content: [],
+    pageNumber: 0,
+    pageSize: PAGE_SIZE,
+    totalElements: 0,
+    totalPages: 1,
+    isLast: true,
+  });
   const [configurationToDelete, setConfigurationToDelete] = useState(null);
-  const filtered = configurations.filter(
-    (item) =>
-      (!dateFrom || item.endDate >= dateFrom) &&
-      (!dateTo || item.startDate <= dateTo),
-  );
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const rows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const setFilter = (setter) => (value) => {
-    setter(value);
-    setPage(1);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const fetchConfigurations = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const response = await listScheduleConfigurations({
+        dateFrom,
+        dateTo,
+        page: page - 1,
+        size: PAGE_SIZE,
+      });
+      setData(response);
+    } catch (err) {
+      setError(err.message || "Failed to load schedule configurations.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchConfigurations();
+  }, [dateFrom, dateTo, page]);
+
+  const handleDelete = async () => {
+    if (!configurationToDelete) return;
+    try {
+      setIsDeleting(true);
+      await deleteScheduleConfiguration(configurationToDelete.configurationId);
+      setConfigurationToDelete(null);
+      await fetchConfigurations();
+    } catch (err) {
+      setError(err.message || "Failed to delete configuration.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const rows = data.content || [];
+  const metrics = data.metrics || {
+    totalConfigurations: 0,
+    currentWindowName: "None",
+    nextOpeningDate: null,
   };
 
   return (
@@ -331,26 +284,27 @@ function ScheduleHistory({ configurations, setConfigurations, navigate }) {
         </button>
       </div>
 
+      {error && (
+        <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <AlertCircle size={18} className="mt-0.5 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-3">
         <Metric
           label="Configurations"
-          value={configurations.length}
+          value={metrics.totalConfigurations}
           icon={Settings2}
         />
         <Metric
           label="Current window"
-          value={
-            configurations.find((item) => item.status === "Current")?.name ||
-            "None"
-          }
+          value={metrics.currentWindowName || "None"}
           icon={CalendarDays}
         />
         <Metric
           label="Next opening"
-          value={formatShortDate(
-            configurations.find((item) => item.status === "Upcoming")
-              ?.startDate || configurations[0].startDate,
-          )}
+          value={formatShortDate(metrics.nextOpeningDate)}
           icon={Clock3}
         />
       </div>
@@ -370,94 +324,118 @@ function ScheduleHistory({ configurations, setConfigurations, navigate }) {
               <Field
                 label="From date"
                 value={dateFrom}
-                onChange={setFilter(setDateFrom)}
+                onChange={(value) => {
+                  setDateFrom(value);
+                  setPage(1);
+                }}
                 type="date"
               />
               <Field
                 label="To date"
                 value={dateTo}
-                onChange={setFilter(setDateTo)}
+                onChange={(value) => {
+                  setDateTo(value);
+                  setPage(1);
+                }}
                 type="date"
               />
             </div>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
-                <th className="px-6 py-4">Configuration</th>
-                <th className="px-6 py-4">Start date</th>
-                <th className="px-6 py-4">End date</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((item) => (
-                <tr
-                  key={item.id}
-                  className="border-b border-slate-100 last:border-0 hover:bg-blue-50/30"
-                >
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-xs font-bold text-[#0261F3]">
-                        {item.name.replace("Config ", "C")}
-                      </span>
-                      <div>
-                        <p className="font-bold text-slate-900">{item.name}</p>
-                        <p className="text-xs text-slate-500">
-                          {item.operatingDays.length} operating days ·{" "}
-                          {item.duration} min slots
-                        </p>
+
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-500">
+            <LoaderCircle size={20} className="animate-spin text-[#0261F3]" />
+            Loading configurations...
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+                  <th className="px-6 py-4">Configuration</th>
+                  <th className="px-6 py-4">Start date</th>
+                  <th className="px-6 py-4">End date</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((item) => (
+                  <tr
+                    key={item.configurationId}
+                    className="border-b border-slate-100 last:border-0 hover:bg-blue-50/30"
+                  >
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-xs font-bold text-[#0261F3]">
+                          {item.name.replace("Config ", "C")}
+                        </span>
+                        <div>
+                          <p className="font-bold text-slate-900">
+                            {item.name}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {item.operatingDaysCount} operating days ·{" "}
+                            {item.slotDurationMinutes} min slots ·{" "}
+                            {item.slotCapacity} capacity
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 font-medium text-slate-700">
-                    {formatDate(item.startDate)}
-                  </td>
-                  <td className="px-6 py-4 font-medium text-slate-700">
-                    {formatDate(item.endDate)}
-                  </td>
-                  <td className="px-6 py-4">
-                    <StatusPill status={item.status} />
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/admin/scheduling/${item.id}`)}
-                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-[#0261F3]"
-                      >
-                        <Eye size={14} />
-                        View details
-                      </button>
-                      {item.status === "Upcoming" && (
+                    </td>
+                    <td className="px-6 py-4 font-medium text-slate-700">
+                      {formatDate(item.startDate)}
+                    </td>
+                    <td className="px-6 py-4 font-medium text-slate-700">
+                      {formatDate(item.endDate)}
+                    </td>
+                    <td className="px-6 py-4">
+                      <StatusPill status={item.status} />
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex justify-end gap-2">
                         <button
                           type="button"
-                          onClick={() => setConfigurationToDelete(item)}
-                          className="rounded-lg border border-rose-100 p-2 text-rose-500 transition hover:bg-rose-50"
-                          title={`Delete ${item.name}`}
+                          onClick={() =>
+                            navigate(
+                              `/admin/scheduling/${item.configurationId}`,
+                            )
+                          }
+                          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-[#0261F3]"
                         >
-                          <Trash2 size={15} />
+                          <Eye size={14} />
+                          View details
                         </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {rows.length === 0 && (
+                        {item.status === "UPCOMING" && (
+                          <button
+                            type="button"
+                            onClick={() => setConfigurationToDelete(item)}
+                            className="rounded-lg border border-rose-100 p-2 text-rose-500 transition hover:bg-rose-50"
+                            title={`Delete ${item.name}`}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {!loading && rows.length === 0 && (
           <div className="px-6 py-12 text-center text-sm text-slate-500">
             No configurations overlap this date range.
           </div>
         )}
+
         <div className="flex items-center justify-between border-t border-slate-100 px-6 py-4 text-sm text-slate-500">
           <span>
             Showing {rows.length ? (page - 1) * PAGE_SIZE + 1 : 0}–
-            {Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+            {Math.min(page * PAGE_SIZE, data.totalElements)} of{" "}
+            {data.totalElements}
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -469,11 +447,11 @@ function ScheduleHistory({ configurations, setConfigurations, navigate }) {
               <ChevronLeft size={16} />
             </button>
             <span className="min-w-16 text-center text-xs font-bold text-slate-700">
-              Page {page} / {pageCount}
+              Page {page} / {Math.max(1, data.totalPages)}
             </span>
             <button
               type="button"
-              disabled={page === pageCount}
+              disabled={page >= data.totalPages}
               onClick={() => setPage((value) => value + 1)}
               className="rounded-lg border border-slate-200 p-2 disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -482,6 +460,7 @@ function ScheduleHistory({ configurations, setConfigurations, navigate }) {
           </div>
         </div>
       </section>
+
       {configurationToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 px-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
@@ -511,21 +490,19 @@ function ScheduleHistory({ configurations, setConfigurations, navigate }) {
                 type="button"
                 onClick={() => setConfigurationToDelete(null)}
                 className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700"
+                disabled={isDeleting}
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setConfigurations((items) =>
-                    items.filter(
-                      (item) => item.id !== configurationToDelete.id,
-                    ),
-                  );
-                  setConfigurationToDelete(null);
-                }}
-                className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-bold text-white"
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-50"
               >
+                {isDeleting && (
+                  <LoaderCircle size={15} className="animate-spin" />
+                )}
                 Delete configuration
               </button>
             </div>
@@ -567,55 +544,107 @@ function DetailStat({ label, value }) {
   );
 }
 
-function ScheduleDetail({ configuration, setConfigurations, navigate }) {
-  const [selectedDate, setSelectedDate] = useState(configuration.startDate);
+function ScheduleDetail({ configurationId, navigate }) {
+  const [configuration, setConfiguration] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [selectedDate, setSelectedDate] = useState("");
   const [showBlockForm, setShowBlockForm] = useState(false);
   const [newBlockDate, setNewBlockDate] = useState("");
   const [newBlockReason, setNewBlockReason] = useState("");
-  const [month, setMonth] = useState(
-    new Date(`${configuration.startDate}T12:00:00`),
+  const [isAddingBlock, setIsAddingBlock] = useState(false);
+  const [month, setMonth] = useState(new Date());
+
+  const loadDetail = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const response = await getScheduleConfiguration(configurationId);
+      setConfiguration(response);
+      setSelectedDate(response.startDate);
+      setMonth(new Date(`${response.startDate}T12:00:00`));
+    } catch (err) {
+      setError(err.message || "Failed to load schedule details.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (configurationId) {
+      loadDetail();
+    }
+  }, [configurationId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center gap-3 py-24 text-sm text-slate-500">
+        <LoaderCircle size={24} className="animate-spin text-[#0261F3]" />
+        Loading schedule details...
+      </div>
+    );
+  }
+
+  if (error || !configuration) {
+    return (
+      <div className="space-y-4">
+        <button
+          type="button"
+          onClick={() => navigate(ROUTES.ADMIN_SCHEDULING)}
+          className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-[#0261F3]"
+        >
+          <ArrowLeft size={16} />
+          Back to configuration history
+        </button>
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
+          {error || "Configuration not found."}
+        </div>
+      </div>
+    );
+  }
+
+  const canEditBlockedDates = configuration.canEditBlockedDates;
+  const selectedDayIndex =
+    (new Date(`${selectedDate}T12:00:00`).getDay() + 6) % 7;
+  const selectedDay = WEEKDAYS[selectedDayIndex];
+  const selectedDayUpper = selectedDay.toUpperCase();
+  const isOperatingDay = (configuration.operatingDays || []).some(
+    (d) => d.toUpperCase() === selectedDayUpper,
   );
-  const canEditBlockedDates =
-    configuration.status === "Current" || configuration.status === "Upcoming";
-  const selectedDay =
-    WEEKDAYS[(new Date(`${selectedDate}T12:00:00`).getDay() + 6) % 7];
-  const blocked = configuration.blockedDates.find(
-    (item) => item.date === selectedDate,
+
+  const blocked = (configuration.blockedDates || []).find(
+    (item) => item.blockedDate === selectedDate,
   );
-  const slots = blocked ? [] : getSlots(configuration, selectedDay);
-  const showOccupancy = configuration.status !== "Upcoming";
+  const slots =
+    blocked || !isOperatingDay ? [] : getSlots(configuration, selectedDay);
   const monthDays = getMonthDays(month);
-  const removeBlock = (date) =>
-    setConfigurations((items) =>
-      items.map((item) =>
-        item.id === configuration.id
-          ? {
-              ...item,
-              blockedDates: item.blockedDates.filter(
-                (entry) => entry.date !== date,
-              ),
-            }
-          : item,
-      ),
-    );
-  const addBlock = () => {
-    if (!newBlockDate || !newBlockReason || newBlockDate <= TODAY) return;
-    setConfigurations((items) =>
-      items.map((item) =>
-        item.id === configuration.id
-          ? {
-              ...item,
-              blockedDates: [
-                ...item.blockedDates,
-                { date: newBlockDate, reason: newBlockReason },
-              ],
-            }
-          : item,
-      ),
-    );
-    setNewBlockDate("");
-    setNewBlockReason("");
-    setShowBlockForm(false);
+
+  const handleRemoveBlock = async (blockedDateId) => {
+    try {
+      await removeBlockedDate(configuration.configurationId, blockedDateId);
+      await loadDetail();
+    } catch (err) {
+      alert(err.message || "Failed to remove blocked date.");
+    }
+  };
+
+  const handleAddBlock = async () => {
+    if (!newBlockDate || !newBlockReason) return;
+    try {
+      setIsAddingBlock(true);
+      await addBlockedDate(configuration.configurationId, {
+        blockedDate: newBlockDate,
+        reason: newBlockReason,
+      });
+      setNewBlockDate("");
+      setNewBlockReason("");
+      setShowBlockForm(false);
+      await loadDetail();
+    } catch (err) {
+      alert(err.message || "Failed to add blocked date.");
+    } finally {
+      setIsAddingBlock(false);
+    }
   };
 
   return (
@@ -628,6 +657,7 @@ function ScheduleDetail({ configuration, setConfigurations, navigate }) {
         <ArrowLeft size={16} />
         Back to configuration history
       </button>
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-[#0261F3]">
@@ -642,9 +672,9 @@ function ScheduleDetail({ configuration, setConfigurations, navigate }) {
           <p className="mt-2 text-sm text-slate-500">
             {formatDate(configuration.startDate)} –{" "}
             {formatDate(configuration.endDate)} ·{" "}
-            {configuration.status === "Completed"
+            {configuration.status === "COMPLETED"
               ? "Read-only historical record"
-              : "Upcoming changes are editable"}
+              : "Upcoming exceptions are editable"}
           </p>
         </div>
         {canEditBlockedDates && (
@@ -658,20 +688,20 @@ function ScheduleDetail({ configuration, setConfigurations, navigate }) {
           </button>
         )}
       </div>
+
       {showBlockForm && (
         <section className="rounded-2xl border border-blue-100 bg-blue-50/60 p-5">
           <div className="flex items-start justify-between">
             <div>
               <h2 className="font-bold text-slate-900">Upcoming exceptions</h2>
               <p className="mt-1 text-sm text-slate-500">
-                Only future dates can be added or removed from an active or
-                upcoming configuration.
+                Only future dates within this window can be blocked.
               </p>
             </div>
             <button
               type="button"
               onClick={() => setShowBlockForm(false)}
-              className="text-slate-400"
+              className="text-slate-400 hover:text-slate-600"
             >
               <X size={18} />
             </button>
@@ -693,9 +723,13 @@ function ScheduleDetail({ configuration, setConfigurations, navigate }) {
             />
             <button
               type="button"
-              onClick={addBlock}
-              className="rounded-xl bg-[#0261F3] px-4 py-2.5 text-sm font-bold text-white"
+              onClick={handleAddBlock}
+              disabled={isAddingBlock || !newBlockDate || !newBlockReason}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#0261F3] px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
             >
+              {isAddingBlock && (
+                <LoaderCircle size={14} className="animate-spin" />
+              )}
               Add date
             </button>
           </div>
@@ -706,35 +740,35 @@ function ScheduleDetail({ configuration, setConfigurations, navigate }) {
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <DetailStat
             label="Booking window"
-            value={`${configuration.bookingWindow} days`}
+            value={`${configuration.bookingWindowDays} days`}
           />
           <DetailStat
             label="Slot capacity"
-            value={`${configuration.capacity} vehicles`}
+            value={`${configuration.slotCapacity} vehicles / slot`}
           />
           <DetailStat
             label="Temporary hold"
-            value={`${configuration.hold} minutes`}
+            value={`${configuration.holdDurationMinutes} minutes`}
           />
           <DetailStat
             label="Cancellation policy"
-            value={`${configuration.cancellation} hours`}
+            value={`${configuration.cancellationNoticeHours} hours notice`}
           />
           <DetailStat
             label="Slot duration"
-            value={`${configuration.duration} minutes`}
+            value={`${configuration.slotDurationMinutes} minutes`}
           />
           <DetailStat
             label="Daily hours"
-            value={`${configuration.opening} – ${configuration.closing}`}
+            value={`${configuration.openingTime.slice(0, 5)} – ${configuration.closingTime.slice(0, 5)}`}
           />
           <DetailStat
             label="Operating days"
-            value={`${configuration.operatingDays.length} days / week`}
+            value={`${configuration.operatingDays?.length || 0} days / week`}
           />
           <DetailStat
             label="Blocked dates"
-            value={`${configuration.blockedDates.length} dates`}
+            value={`${configuration.blockedDates?.length || 0} dates`}
           />
         </div>
         <div className="mt-6 border-t border-slate-100 pt-5">
@@ -742,14 +776,23 @@ function ScheduleDetail({ configuration, setConfigurations, navigate }) {
             Operating days
           </p>
           <div className="flex flex-wrap gap-2">
-            {WEEKDAYS.map((day) => (
-              <span
-                key={day}
-                className={`rounded-lg px-3 py-2 text-xs font-bold ${configuration.operatingDays.includes(day) ? "bg-blue-50 text-[#0261F3]" : "bg-slate-50 text-slate-300"}`}
-              >
-                {day.slice(0, 3)}
-              </span>
-            ))}
+            {WEEKDAYS.map((day) => {
+              const active = (configuration.operatingDays || []).some(
+                (d) => d.toUpperCase() === day.toUpperCase(),
+              );
+              return (
+                <span
+                  key={day}
+                  className={`rounded-lg px-3 py-2 text-xs font-bold ${
+                    active
+                      ? "bg-blue-50 text-[#0261F3]"
+                      : "bg-slate-50 text-slate-300"
+                  }`}
+                >
+                  {day.slice(0, 3)}
+                </span>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -763,11 +806,12 @@ function ScheduleDetail({ configuration, setConfigurations, navigate }) {
           setSelectedDate={setSelectedDate}
           monthDays={monthDays}
         />
+
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
-                Daily capacity view
+                Daily slot schedule
               </p>
               <h2 className="mt-1 text-xl font-bold text-slate-950">
                 {formatDate(selectedDate)}
@@ -778,15 +822,17 @@ function ScheduleDetail({ configuration, setConfigurations, navigate }) {
                 <Ban size={14} />
                 Blocked · {blocked.reason}
               </div>
-            ) : !configuration.operatingDays.includes(selectedDay) ? (
+            ) : !isOperatingDay ? (
               <StatusPill status="Closed" />
             ) : (
               <span className="text-sm font-semibold text-slate-500">
-                {selectedDay}
+                {selectedDay} · {slots.filter((s) => !s.isBreak).length}{" "}
+                available slots
               </span>
             )}
           </div>
-          {blocked || !configuration.operatingDays.includes(selectedDay) ? (
+
+          {blocked || !isOperatingDay ? (
             <div className="flex min-h-64 flex-col items-center justify-center text-center">
               <LockKeyhole size={25} className="text-slate-300" />
               <p className="mt-3 font-bold text-slate-700">
@@ -794,98 +840,27 @@ function ScheduleDetail({ configuration, setConfigurations, navigate }) {
               </p>
               <p className="mt-1 max-w-sm text-sm text-slate-500">
                 Choose another date within this configuration window to inspect
-                its slots.
+                its operating slots.
               </p>
             </div>
           ) : (
-            <>
-              {showOccupancy && (
-                <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                  <CapacitySummary
-                    label="Available slots"
-                    value={
-                      slots.filter(
-                        (slot) =>
-                          !slot.isBreak && slot.booked < configuration.capacity,
-                      ).length
-                    }
-                    color="text-emerald-600"
-                  />
-                  <CapacitySummary
-                    label="Full slots"
-                    value={
-                      slots.filter(
-                        (slot) =>
-                          !slot.isBreak &&
-                          slot.booked >= configuration.capacity,
-                      ).length
-                    }
-                    color="text-rose-600"
-                  />
-                  <CapacitySummary
-                    label="Held slots"
-                    value={slots.reduce((sum, slot) => sum + slot.held, 0)}
-                    color="text-amber-600"
-                  />
+            <div className="mt-5 space-y-2">
+              {slots.map((slot) => (
+                <div
+                  key={slot.label}
+                  className="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3"
+                >
+                  <span className="text-sm font-bold text-slate-700">
+                    {slot.label}
+                  </span>
+                  <StatusPill status={slot.isBreak ? "Break" : "Available"} />
                 </div>
-              )}
-              <div className="mt-5 space-y-2">
-                {slots.map((slot) => {
-                  const full =
-                    !slot.isBreak && slot.booked >= configuration.capacity;
-                  const hold = !full && slot.held > 0;
-                  const status = slot.isBreak
-                    ? "Break"
-                    : full
-                      ? "Full"
-                      : hold
-                        ? "Break"
-                        : "Available";
-                  return (
-                    <div
-                      key={slot.label}
-                      className="grid grid-cols-[80px_1fr_auto] items-center gap-4 rounded-xl border border-slate-100 px-4 py-3"
-                    >
-                      <span className="text-sm font-bold text-slate-700">
-                        {slot.label}
-                      </span>
-                      <div>
-                        {slot.isBreak ? (
-                          <p className="text-sm font-semibold text-amber-700">
-                            Break
-                          </p>
-                        ) : showOccupancy ? (
-                          <>
-                            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                              <div
-                                className={`h-full rounded-full ${full ? "bg-rose-400" : hold ? "bg-amber-400" : "bg-emerald-400"}`}
-                                style={{
-                                  width: `${Math.max(10, (slot.booked / configuration.capacity) * 100)}%`,
-                                }}
-                              />
-                            </div>
-                            <p className="mt-1 text-xs text-slate-500">
-                              {slot.booked} booked ·{" "}
-                              {configuration.capacity - slot.booked} remaining ·{" "}
-                              {slot.held} held
-                              {slot.users?.length
-                                ? ` · ${slot.users.join(", ")}`
-                                : ""}
-                            </p>
-                          </>
-                        ) : null}
-                      </div>
-                      {(slot.isBreak || showOccupancy) && (
-                        <StatusPill status={status} />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </>
+              ))}
+            </div>
           )}
         </section>
       </div>
+
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
@@ -903,22 +878,22 @@ function ScheduleDetail({ configuration, setConfigurations, navigate }) {
           )}
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
-          {configuration.blockedDates.length ? (
+          {(configuration.blockedDates || []).length > 0 ? (
             configuration.blockedDates.map((item) => (
               <div
-                key={item.date}
+                key={item.blockedDateId || item.blockedDate}
                 className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3"
               >
                 <div>
                   <p className="text-sm font-bold text-slate-800">
-                    {formatDate(item.date)}
+                    {formatDate(item.blockedDate)}
                   </p>
                   <p className="text-xs text-slate-500">{item.reason}</p>
                 </div>
-                {canEditBlockedDates && item.date > TODAY && (
+                {canEditBlockedDates && item.blockedDate > TODAY && (
                   <button
                     type="button"
-                    onClick={() => removeBlock(item.date)}
+                    onClick={() => handleRemoveBlock(item.blockedDateId)}
                     className="rounded-lg p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
                     title="Remove blocked date"
                   >
@@ -932,15 +907,6 @@ function ScheduleDetail({ configuration, setConfigurations, navigate }) {
           )}
         </div>
       </section>
-    </div>
-  );
-}
-
-function CapacitySummary({ label, value, color }) {
-  return (
-    <div className="rounded-xl bg-slate-50 px-4 py-3">
-      <p className="text-xs font-semibold text-slate-500">{label}</p>
-      <p className={`mt-1 text-2xl font-bold ${color}`}>{value}</p>
     </div>
   );
 }
@@ -996,22 +962,34 @@ function CalendarPanel({
         ))}
         {monthDays.map((day) => {
           const date = toDateInput(day.date);
-          const isBlocked = configuration.blockedDates.some(
-            (item) => item.date === date,
+          const isBlocked = (configuration.blockedDates || []).some(
+            (item) => item.blockedDate === date,
           );
           const isOutside =
             date < configuration.startDate || date > configuration.endDate;
           const isSelected = date === selectedDate;
-          const isClosed = !configuration.operatingDays.includes(
-            WEEKDAYS[(day.date.getDay() + 6) % 7],
+          const dayUpper = WEEKDAYS[(day.date.getDay() + 6) % 7].toUpperCase();
+          const isClosed = !(configuration.operatingDays || []).some(
+            (d) => d.toUpperCase() === dayUpper,
           );
+
           return (
             <button
               type="button"
               key={date}
               disabled={isOutside}
               onClick={() => setSelectedDate(date)}
-              className={`relative flex h-9 items-center justify-center rounded-lg text-xs font-semibold transition ${isOutside ? "cursor-not-allowed text-slate-200" : isSelected ? "bg-[#0261F3] text-white" : isBlocked ? "bg-rose-50 text-rose-600" : isClosed ? "bg-slate-50 text-slate-400" : "text-slate-700 hover:bg-blue-50 hover:text-[#0261F3]"}`}
+              className={`relative flex h-9 items-center justify-center rounded-lg text-xs font-semibold transition ${
+                isOutside
+                  ? "cursor-not-allowed text-slate-200"
+                  : isSelected
+                    ? "bg-[#0261F3] text-white"
+                    : isBlocked
+                      ? "bg-rose-50 text-rose-600"
+                      : isClosed
+                        ? "bg-slate-50 text-slate-400"
+                        : "text-slate-700 hover:bg-blue-50 hover:text-[#0261F3]"
+              }`}
             >
               {day.date.getDate()}
               {isBlocked && !isSelected && (
@@ -1043,53 +1021,60 @@ function getMonthDays(month) {
   const first = new Date(month.getFullYear(), month.getMonth(), 1);
   const offset = (first.getDay() + 6) % 7;
   const days = [];
-  for (let index = 0; index < 42; index += 1)
+  for (let index = 0; index < 42; index += 1) {
     days.push({
       date: new Date(month.getFullYear(), month.getMonth(), index - offset + 1),
     });
+  }
   return days;
 }
 
-function ConfigurationWizard({ configurations, setConfigurations, navigate }) {
+function ConfigurationWizard({ navigate }) {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
+    name: "",
     startDate: "2027-01-01",
-    bookingWindow: 30,
-    opening: "08:00",
-    closing: "17:00",
-    capacity: 5,
-    hold: 15,
-    cancellation: 24,
-    duration: 60,
+    bookingWindowDays: 30,
+    openingTime: "08:00",
+    closingTime: "17:00",
+    slotCapacity: 5,
+    holdDurationMinutes: 15,
+    cancellationNoticeHours: 24,
+    slotDurationMinutes: 60,
     operatingDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
     breaks: [],
     blockedDates: [],
   });
+
   const [breakDay, setBreakDay] = useState("Monday");
   const [breakStart, setBreakStart] = useState("12:00");
   const [breakEnd, setBreakEnd] = useState("13:00");
   const [blockedDate, setBlockedDate] = useState("");
   const [blockedReason, setBlockedReason] = useState("");
-  const previous = configurations.find(
-    (item) => item.endDate >= form.startDate,
-  );
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+
   const calculatedEnd = useMemo(() => {
+    if (!form.startDate) return "";
     const date = new Date(`${form.startDate}T12:00:00`);
-    date.setDate(date.getDate() + Number(form.bookingWindow) - 1);
+    date.setDate(date.getDate() + Number(form.bookingWindowDays) - 1);
     while (
       !form.operatingDays.includes(WEEKDAYS[(date.getDay() + 6) % 7]) ||
-      form.blockedDates.some((item) => item.date === toDateInput(date))
-    )
+      form.blockedDates.some((item) => item.blockedDate === toDateInput(date))
+    ) {
       date.setDate(date.getDate() + 1);
+    }
     return toDateInput(date);
   }, [
     form.startDate,
-    form.bookingWindow,
+    form.bookingWindowDays,
     form.operatingDays,
     form.blockedDates,
   ]);
+
   const update = (key) => (value) =>
     setForm((current) => ({ ...current, [key]: value }));
+
   const toggleDay = (day) =>
     setForm((current) => ({
       ...current,
@@ -1097,14 +1082,26 @@ function ConfigurationWizard({ configurations, setConfigurations, navigate }) {
         ? current.operatingDays.filter((item) => item !== day)
         : [...current.operatingDays, day],
     }));
-  const addBreak = () =>
+
+  const addBreak = () => {
+    if (!breakStart || !breakEnd || breakStart >= breakEnd) {
+      alert("Break end time must be later than start time.");
+      return;
+    }
     setForm((current) => ({
       ...current,
       breaks: [
         ...current.breaks,
-        { day: breakDay, start: breakStart, end: breakEnd },
+        {
+          dayOfWeek: breakDay,
+          startTime: breakStart,
+          endTime: breakEnd,
+          label: "Break",
+        },
       ],
     }));
+  };
+
   const addBlocked = () => {
     if (
       blockedDate &&
@@ -1116,29 +1113,55 @@ function ConfigurationWizard({ configurations, setConfigurations, navigate }) {
         ...current,
         blockedDates: [
           ...current.blockedDates,
-          { date: blockedDate, reason: blockedReason },
+          { blockedDate, reason: blockedReason },
         ],
       }));
       setBlockedDate("");
       setBlockedReason("");
     }
   };
-  const submit = () => {
-    const item = {
-      ...form,
-      id: `config-${configurations.length + 1}`,
-      name: `Config ${configurations.length + 1}`,
-      endDate: calculatedEnd,
-      status: "Upcoming",
-    };
-    setConfigurations((current) => [...current, item]);
-    navigate(ROUTES.ADMIN_SCHEDULING);
+
+  const submit = async () => {
+    try {
+      setIsSubmitting(true);
+      setSubmitError("");
+      const payload = {
+        name: form.name.trim() || undefined,
+        startDate: form.startDate,
+        bookingWindowDays: Number(form.bookingWindowDays),
+        openingTime: form.openingTime,
+        closingTime: form.closingTime,
+        slotDurationMinutes: Number(form.slotDurationMinutes),
+        slotCapacity: Number(form.slotCapacity),
+        holdDurationMinutes: Number(form.holdDurationMinutes),
+        cancellationNoticeHours: Number(form.cancellationNoticeHours),
+        operatingDays: form.operatingDays.map((d) => d.toUpperCase()),
+        breaks: form.breaks.map((b) => ({
+          dayOfWeek: b.dayOfWeek.toUpperCase(),
+          startTime: b.startTime,
+          endTime: b.endTime,
+          label: b.label || "Break",
+        })),
+        blockedDates: form.blockedDates.map((b) => ({
+          blockedDate: b.blockedDate,
+          reason: b.reason.trim(),
+        })),
+      };
+
+      await createScheduleConfiguration(payload);
+      navigate(ROUTES.ADMIN_SCHEDULING);
+    } catch (err) {
+      setSubmitError(err.message || "Failed to publish configuration.");
+      setStep(1);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
   const canProceed =
     form.startDate &&
-    form.operatingDays.length &&
-    form.opening < form.closing &&
-    (!previous || form.startDate > previous.endDate);
+    form.operatingDays.length > 0 &&
+    form.openingTime < form.closingTime;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -1150,6 +1173,7 @@ function ConfigurationWizard({ configurations, setConfigurations, navigate }) {
         <ArrowLeft size={16} />
         Back to configuration history
       </button>
+
       <div>
         <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-[#0261F3]">
           New schedule
@@ -1161,6 +1185,14 @@ function ConfigurationWizard({ configurations, setConfigurations, navigate }) {
           Set the rules once, review the simulated calendar, then publish.
         </p>
       </div>
+
+      {submitError && (
+        <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <AlertCircle size={18} className="mt-0.5 shrink-0" />
+          <span>{submitError}</span>
+        </div>
+      )}
+
       <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <Step
           number="01"
@@ -1176,6 +1208,7 @@ function ConfigurationWizard({ configurations, setConfigurations, navigate }) {
           complete={step > 2}
         />
       </div>
+
       {step === 1 ? (
         <section className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="grid gap-5 md:grid-cols-3">
@@ -1189,8 +1222,8 @@ function ConfigurationWizard({ configurations, setConfigurations, navigate }) {
               label="Booking window (days)"
               type="number"
               min="1"
-              value={form.bookingWindow}
-              onChange={update("bookingWindow")}
+              value={form.bookingWindowDays}
+              onChange={update("bookingWindowDays")}
             />
             <div className="rounded-xl bg-blue-50 p-3.5">
               <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-600">
@@ -1201,14 +1234,7 @@ function ConfigurationWizard({ configurations, setConfigurations, navigate }) {
               </p>
             </div>
           </div>
-          {previous && (
-            <p className="flex items-center gap-2 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              <Info size={16} />
-              This date overlaps {previous.name} (
-              {formatDate(previous.startDate)} – {formatDate(previous.endDate)}
-              ). Choose a later date.
-            </p>
-          )}
+
           <div>
             <h2 className="font-bold text-slate-900">Operating days</h2>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -1217,7 +1243,11 @@ function ConfigurationWizard({ configurations, setConfigurations, navigate }) {
                   key={day}
                   type="button"
                   onClick={() => toggleDay(day)}
-                  className={`rounded-xl border px-3.5 py-2.5 text-sm font-semibold ${form.operatingDays.includes(day) ? "border-blue-200 bg-blue-50 text-[#0261F3]" : "border-slate-200 text-slate-500"}`}
+                  className={`rounded-xl border px-3.5 py-2.5 text-sm font-semibold transition ${
+                    form.operatingDays.includes(day)
+                      ? "border-blue-200 bg-blue-50 text-[#0261F3]"
+                      : "border-slate-200 text-slate-500"
+                  }`}
                 >
                   {form.operatingDays.includes(day) && (
                     <Check size={14} className="mr-1 inline" />
@@ -1227,28 +1257,30 @@ function ConfigurationWizard({ configurations, setConfigurations, navigate }) {
               ))}
             </div>
           </div>
+
           <div>
             <h2 className="font-bold text-slate-900">Daily opening hours</h2>
             <div className="mt-3 grid gap-4 sm:grid-cols-2">
               <Field
                 label="Opening time"
                 type="time"
-                value={form.opening}
-                onChange={update("opening")}
+                value={form.openingTime}
+                onChange={update("openingTime")}
               />
               <Field
                 label="Closing time"
                 type="time"
-                value={form.closing}
-                onChange={update("closing")}
+                value={form.closingTime}
+                onChange={update("closingTime")}
               />
             </div>
-            {form.opening >= form.closing && (
+            {form.openingTime >= form.closingTime && (
               <p className="mt-2 text-sm font-semibold text-rose-600">
                 Closing time must be later than opening time.
               </p>
             )}
           </div>
+
           <div>
             <div className="flex items-center justify-between">
               <div>
@@ -1291,20 +1323,18 @@ function ConfigurationWizard({ configurations, setConfigurations, navigate }) {
             <div className="mt-3 space-y-2">
               {form.breaks.map((item, index) => (
                 <div
-                  key={`${item.day}-${index}`}
+                  key={`${item.dayOfWeek}-${index}`}
                   className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-sm"
                 >
                   <span>
-                    <b>{item.day}</b> · {item.start} – {item.end}
+                    <b>{item.dayOfWeek}</b> · {item.startTime} – {item.endTime}
                   </span>
                   <button
                     type="button"
                     onClick={() =>
                       setForm((current) => ({
                         ...current,
-                        breaks: current.breaks.filter(
-                          (_, itemIndex) => itemIndex !== index,
-                        ),
+                        breaks: current.breaks.filter((_, i) => i !== index),
                       }))
                     }
                     className="text-slate-400 hover:text-rose-600"
@@ -1315,36 +1345,38 @@ function ConfigurationWizard({ configurations, setConfigurations, navigate }) {
               ))}
             </div>
           </div>
+
           <div className="grid gap-5 md:grid-cols-4">
             <Field
               label="Capacity / slot"
               type="number"
               min="1"
-              value={form.capacity}
-              onChange={update("capacity")}
+              value={form.slotCapacity}
+              onChange={update("slotCapacity")}
             />
             <Field
               label="Temporary hold (min)"
               type="number"
               min="1"
-              value={form.hold}
-              onChange={update("hold")}
+              value={form.holdDurationMinutes}
+              onChange={update("holdDurationMinutes")}
             />
             <Field
               label="Cancellation (hours)"
               type="number"
               min="0"
-              value={form.cancellation}
-              onChange={update("cancellation")}
+              value={form.cancellationNoticeHours}
+              onChange={update("cancellationNoticeHours")}
             />
             <Field
               label="Slot duration (min)"
               type="number"
               min="15"
-              value={form.duration}
-              onChange={update("duration")}
+              value={form.slotDurationMinutes}
+              onChange={update("slotDurationMinutes")}
             />
           </div>
+
           <div>
             <h2 className="font-bold text-slate-900">Blocked dates</h2>
             <div className="mt-3 grid gap-3 md:grid-cols-[180px_1fr_auto]">
@@ -1370,13 +1402,13 @@ function ConfigurationWizard({ configurations, setConfigurations, navigate }) {
                 Add date
               </button>
             </div>
-            {form.blockedDates.map((item) => (
+            {form.blockedDates.map((item, index) => (
               <div
-                key={item.date}
+                key={`${item.blockedDate}-${index}`}
                 className="mt-2 flex justify-between rounded-xl bg-slate-50 px-4 py-3 text-sm"
               >
                 <span>
-                  <b>{formatDate(item.date)}</b> · {item.reason}
+                  <b>{formatDate(item.blockedDate)}</b> · {item.reason}
                 </span>
                 <button
                   type="button"
@@ -1384,7 +1416,7 @@ function ConfigurationWizard({ configurations, setConfigurations, navigate }) {
                     setForm((current) => ({
                       ...current,
                       blockedDates: current.blockedDates.filter(
-                        (entry) => entry.date !== item.date,
+                        (_, i) => i !== index,
                       ),
                     }))
                   }
@@ -1395,6 +1427,7 @@ function ConfigurationWizard({ configurations, setConfigurations, navigate }) {
               </div>
             ))}
           </div>
+
           <div className="flex justify-end border-t border-slate-100 pt-5">
             <button
               type="button"
@@ -1412,6 +1445,7 @@ function ConfigurationWizard({ configurations, setConfigurations, navigate }) {
           calculatedEnd={calculatedEnd}
           setStep={setStep}
           submit={submit}
+          isSubmitting={isSubmitting}
         />
       )}
     </div>
@@ -1424,7 +1458,13 @@ function Step({ number, label, active, complete }) {
       className={`flex items-center gap-3 ${active || complete ? "text-[#0261F3]" : "text-slate-400"}`}
     >
       <span
-        className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${complete ? "bg-emerald-500 text-white" : active ? "bg-[#0261F3] text-white" : "bg-slate-100"}`}
+        className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
+          complete
+            ? "bg-emerald-500 text-white"
+            : active
+              ? "bg-[#0261F3] text-white"
+              : "bg-slate-100"
+        }`}
       >
         {complete ? <Check size={14} /> : number}
       </span>
@@ -1433,7 +1473,14 @@ function Step({ number, label, active, complete }) {
   );
 }
 
-function SummaryStep({ form, calculatedEnd, setStep, submit }) {
+function SummaryStep({ form, calculatedEnd, setStep, submit, isSubmitting }) {
+  const previewConfig = {
+    openingTime: form.openingTime,
+    closingTime: form.closingTime,
+    slotDurationMinutes: form.slotDurationMinutes,
+    breaks: form.breaks,
+  };
+
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex items-start gap-3 rounded-xl bg-blue-50 p-4">
@@ -1448,6 +1495,7 @@ function SummaryStep({ form, calculatedEnd, setStep, submit }) {
           </p>
         </div>
       </div>
+
       <div className="mt-6 grid gap-6 md:grid-cols-2">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
@@ -1457,7 +1505,8 @@ function SummaryStep({ form, calculatedEnd, setStep, submit }) {
             {formatDate(form.startDate)} – {formatDate(calculatedEnd)}
           </p>
           <p className="mt-1 text-sm text-slate-500">
-            {form.bookingWindow} booking days · {form.operatingDays.join(", ")}
+            {form.bookingWindowDays} booking days ·{" "}
+            {form.operatingDays.join(", ")}
           </p>
         </div>
         <div>
@@ -1465,46 +1514,59 @@ function SummaryStep({ form, calculatedEnd, setStep, submit }) {
             Daily hours
           </p>
           <p className="mt-2 text-lg font-bold text-slate-900">
-            {form.opening} – {form.closing}
+            {form.openingTime} – {form.closingTime}
           </p>
           <p className="mt-1 text-sm text-slate-500">
-            {form.duration} minute slots · {form.capacity} vehicle capacity
+            {form.slotDurationMinutes} minute slots · {form.slotCapacity}{" "}
+            vehicle capacity
           </p>
         </div>
       </div>
+
       <div className="mt-6 border-t border-slate-100 pt-5">
         <h3 className="font-bold text-slate-900">Simulated slots</h3>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
-          {form.operatingDays.map((day) => (
-            <div key={day} className="rounded-xl border border-slate-100 p-4">
-              <div className="flex items-center justify-between">
-                <p className="font-bold text-slate-800">{day}</p>
-                <span className="text-xs font-semibold text-slate-400">
-                  {getSlots({ ...form, endDate: calculatedEnd }, day).length}{" "}
-                  slots
-                </span>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {getSlots({ ...form, endDate: calculatedEnd }, day)
-                  .slice(0, 6)
-                  .map((slot) => (
+          {form.operatingDays.map((day) => {
+            const slots = getSlots(previewConfig, day);
+            return (
+              <div key={day} className="rounded-xl border border-slate-100 p-4">
+                <div className="flex items-center justify-between">
+                  <p className="font-bold text-slate-800">{day}</p>
+                  <span className="text-xs font-semibold text-slate-400">
+                    {slots.length} slots
+                  </span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {slots.slice(0, 8).map((slot) => (
                     <span
                       key={slot.label}
-                      className={`rounded-lg px-2.5 py-1.5 text-xs font-bold ${slot.isBreak ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}
+                      className={`rounded-lg px-2.5 py-1.5 text-xs font-bold ${
+                        slot.isBreak
+                          ? "bg-amber-50 text-amber-700"
+                          : "bg-emerald-50 text-emerald-700"
+                      }`}
                     >
                       {slot.label}
                       {slot.isBreak ? " (Break)" : ""}
                     </span>
                   ))}
+                  {slots.length > 8 && (
+                    <span className="rounded-lg bg-slate-50 px-2 py-1.5 text-xs text-slate-400">
+                      +{slots.length - 8} more
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
+
       <div className="mt-6 flex flex-col-reverse justify-between gap-3 border-t border-slate-100 pt-5 sm:flex-row">
         <button
           type="button"
           onClick={() => setStep(1)}
+          disabled={isSubmitting}
           className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700"
         >
           Back to edit
@@ -1513,6 +1575,7 @@ function SummaryStep({ form, calculatedEnd, setStep, submit }) {
           <button
             type="button"
             onClick={() => setStep(1)}
+            disabled={isSubmitting}
             className="rounded-xl px-5 py-3 text-sm font-bold text-slate-500"
           >
             Cancel
@@ -1520,8 +1583,12 @@ function SummaryStep({ form, calculatedEnd, setStep, submit }) {
           <button
             type="button"
             onClick={submit}
-            className="rounded-xl bg-[#0261F3] px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20"
+            disabled={isSubmitting}
+            className="inline-flex items-center gap-2 rounded-xl bg-[#0261F3] px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 hover:bg-blue-700 disabled:opacity-50"
           >
+            {isSubmitting && (
+              <LoaderCircle size={16} className="animate-spin" />
+            )}
             Publish configuration
           </button>
         </div>

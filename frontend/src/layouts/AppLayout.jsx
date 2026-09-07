@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Activity,
@@ -52,9 +52,21 @@ const adminNavigationItems = [
 function AppLayout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const session = useMemo(() => getStoredAuthSession(), []);
+  const [session, setSession] = useState(() => getStoredAuthSession());
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  useEffect(() => {
+    const handleAuthUpdate = () => {
+      setSession(getStoredAuthSession());
+    };
+
+    window.addEventListener("repairlink_auth_updated", handleAuthUpdate);
+
+    return () => {
+      window.removeEventListener("repairlink_auth_updated", handleAuthUpdate);
+    };
+  }, []);
 
   const userRole = session.user?.role;
   const navigationItems =

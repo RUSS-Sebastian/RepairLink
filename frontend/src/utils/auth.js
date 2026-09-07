@@ -20,6 +20,20 @@ export function setStoredAuthSession({ accessToken, tokenType, user }) {
   localStorage.setItem(USER_KEY, JSON.stringify({ ...user, tokenType }));
 }
 
+export function updateStoredAuthUser(updates) {
+  const session = getStoredAuthSession();
+
+  if (!session.user) {
+    return;
+  }
+
+  localStorage.setItem(
+    USER_KEY,
+    JSON.stringify({ ...session.user, ...updates }),
+  );
+  window.dispatchEvent(new Event("repairlink_auth_updated"));
+}
+
 export function clearStoredAuthSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);

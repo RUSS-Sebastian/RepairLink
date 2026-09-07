@@ -3,6 +3,9 @@ import {
   AlertCircle,
   CalendarDays,
   CheckCircle2,
+  Eye,
+  EyeOff,
+  LockKeyhole,
   LoaderCircle,
   Mail,
   Pencil,
@@ -13,11 +16,16 @@ import {
 } from "lucide-react";
 
 import Button from "../../components/common/Button";
+import { updateStoredAuthUser } from "../../utils/auth";
 import {
+  changeCustomerPassword,
   getCustomerProfile,
   updateCustomerProfile,
 } from "../../features/auth/authApi";
-import { validateProfileUpdate } from "../../validation/authValidation";
+import {
+  validatePasswordChange,
+  validateProfileUpdate,
+} from "../../validation/authValidation";
 
 const EMPTY_PROFILE = {
   fullName: "",
@@ -37,6 +45,15 @@ function ProfilePage() {
   const [submitError, setSubmitError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
+  const [passwordDraft, setPasswordDraft] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [passwordErrors, setPasswordErrors] = useState({});
+  const [passwordSubmitError, setPasswordSubmitError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState("");
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -187,6 +204,10 @@ function ProfilePage() {
         vehicleCount: response.vehicleCount ?? profile.vehicleCount,
       };
 
+      updateStoredAuthUser({
+        fullName: nextProfile.fullName,
+        email: nextProfile.email,
+      });
       setProfile(nextProfile);
       setDraft(nextProfile);
       setIsEditing(false);
@@ -197,6 +218,50 @@ function ProfilePage() {
       );
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handlePasswordFieldChange = (field, value) => {
+    setPasswordDraft((previous) => ({
+      ...previous,
+      [field]: value,
+    }));
+
+    setPasswordErrors((previous) => ({
+      ...previous,
+      [field]: "",
+    }));
+    setPasswordSubmitError("");
+    setPasswordSuccess("");
+  };
+
+  const handlePasswordSubmit = async () => {
+    const validationErrors = validatePasswordChange(passwordDraft);
+    setPasswordErrors(validationErrors);
+
+    if (Object.keys(validationErrors).length > 0) {
+      return;
+    }
+
+    setIsChangingPassword(true);
+    setPasswordSubmitError("");
+    setPasswordSuccess("");
+
+    try {
+      await changeCustomerPassword(passwordDraft);
+      setPasswordDraft({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+      setPasswordErrors({});
+      setPasswordSuccess("Password updated successfully.");
+    } catch (passwordError) {
+      setPasswordSubmitError(
+        passwordError.message || "Unable to update your password right now.",
+      );
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -429,7 +494,118 @@ function ProfilePage() {
         )}
       </div>
 
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+            <LockKeyhole size={19} />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">
+              Password &amp; Security
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Keep your account secure with a fresh password.
+            </p>
+          </div>
+        </div>
+
+        {passwordSuccess && (
+          <div className="mt-5 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+            <CheckCircle2 size={17} className="mt-0.5 shrink-0" />
+            <span>{passwordSuccess}</span>
+          </div>
+        )}
+
+        {passwordSubmitError && (
+          <div className="mt-5 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <AlertCircle size={17} className="mt-0.5 shrink-0" />
+            <span>{passwordSubmitError}</span>
+          </div>
+        )}
+
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <PasswordField
+            label="Current password"
+            value={passwordDraft.currentPassword}
+            autoComplete="current-password"
+            error={passwordErrors.currentPassword}
+            onChange={(value) =>
+              handlePasswordFieldChange("currentPassword", value)
+            }
+          />
+          <div className="hidden sm:block" />
+          <PasswordField
+            label="New password"
+            value={passwordDraft.newPassword}
+            autoComplete="new-password"
+            error={passwordErrors.newPassword}
+            onChange={(value) =>
+              handlePasswordFieldChange("newPassword", value)
+            }
+          />
+          <PasswordField
+            label="Confirm new password"
+            value={passwordDraft.confirmPassword}
+            autoComplete="new-password"
+            error={passwordErrors.confirmPassword}
+            onChange={(value) =>
+              handlePasswordFieldChange("confirmPassword", value)
+            }
+          />
+        </div>
+
+        <div className="mt-5 flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs leading-5 text-slate-400">
+            Use at least 8 characters with uppercase, lowercase, a number, and a
+            special character.
+          </p>
+          <Button
+            className="shrink-0"
+            onClick={handlePasswordSubmit}
+            disabled={isChangingPassword}
+          >
+            <LockKeyhole size={15} className="mr-2" />
+            {isChangingPassword ? "Updating..." : "Update Password"}
+          </Button>
+        </div>
+      </div>
+
       <LoyaltySummary />
+    </div>
+  );
+}
+
+function PasswordField({ label, value, autoComplete, error, onChange }) {
+  const [showPassword, setShowPassword] = useState(false);
+
+  return (
+    <div>
+      <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+        {label}
+      </label>
+      <div className="relative">
+        <input
+          type={showPassword ? "text" : "password"}
+          value={value}
+          autoComplete={autoComplete}
+          onChange={(event) => onChange(event.target.value)}
+          className={`w-full rounded-xl border px-3 py-3 pr-11 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 ${
+            error
+              ? "border-red-400 focus:border-red-500"
+              : "border-slate-200 focus:border-blue-500"
+          }`}
+        />
+        <button
+          type="button"
+          onClick={() => setShowPassword((visible) => !visible)}
+          aria-label={showPassword ? `Hide ${label}` : `Show ${label}`}
+          title={showPassword ? `Hide ${label}` : `Show ${label}`}
+          className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-400 transition hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+        >
+          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+        </button>
+      </div>
+      {error && <p className="mt-1.5 text-sm text-red-500">{error}</p>}
     </div>
   );
 }

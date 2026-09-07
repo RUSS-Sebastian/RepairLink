@@ -1,6 +1,8 @@
 package com.repairlink.backend.security.auth.controller;
 
 import com.repairlink.backend.security.auth.dto.CustomerProfileResponse;
+import com.repairlink.backend.security.auth.dto.AdminProfileResponse;
+import com.repairlink.backend.security.auth.dto.ChangePasswordRequest;
 import com.repairlink.backend.security.auth.dto.LoginRequest;
 import com.repairlink.backend.security.auth.dto.LoginResponse;
 import com.repairlink.backend.security.auth.dto.SignupRequest;
@@ -88,4 +90,41 @@ public class AuthController {
 
         return ResponseEntity.ok(response);
     }
+
+        @PutMapping("/customers/password")
+        public ResponseEntity<Void> changeCustomerPassword(
+                        Authentication authentication,
+                        @Valid @RequestBody ChangePasswordRequest request
+        ) {
+                UUID userId = UUID.fromString(authentication.getName());
+
+                authService.changeCustomerPassword(userId, request);
+
+                return ResponseEntity.noContent().build();
+        }
+
+        @GetMapping("/admin/profile")
+        public ResponseEntity<AdminProfileResponse> adminProfile(Authentication authentication) {
+                UUID userId = UUID.fromString(authentication.getName());
+                return ResponseEntity.ok(authService.getCurrentAdminProfile(userId));
+        }
+
+        @PutMapping("/admin/profile")
+        public ResponseEntity<AdminProfileResponse> updateAdminProfile(
+                        Authentication authentication,
+                        @Valid @RequestBody UpdateCustomerProfileRequest request
+        ) {
+                UUID userId = UUID.fromString(authentication.getName());
+                return ResponseEntity.ok(authService.updateCurrentAdminProfile(userId, request));
+        }
+
+        @PutMapping("/admin/password")
+        public ResponseEntity<Void> changeAdminPassword(
+                        Authentication authentication,
+                        @Valid @RequestBody ChangePasswordRequest request
+        ) {
+                UUID userId = UUID.fromString(authentication.getName());
+                authService.changeAdminPassword(userId, request);
+                return ResponseEntity.noContent().build();
+        }
 }

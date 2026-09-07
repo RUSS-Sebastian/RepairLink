@@ -94,3 +94,77 @@ export async function updateCustomerProfile(payload) {
 
   return response.json();
 }
+
+export async function changeCustomerPassword(payload) {
+  const token = localStorage.getItem("repairlink_auth_token");
+
+  if (!token) {
+    throw new Error("Authentication required.");
+  }
+
+  const response = await fetch(`${API_BASE_URL}/auth/customers/password`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const message = await parseApiError(response);
+    throw new Error(message);
+  }
+}
+
+async function requestAdminProfile(method, payload) {
+  const token = localStorage.getItem("repairlink_auth_token");
+
+  if (!token) {
+    throw new Error("Authentication required.");
+  }
+
+  const response = await fetch(`${API_BASE_URL}/auth/admin/profile`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    ...(payload ? { body: JSON.stringify(payload) } : {}),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  return response.json();
+}
+
+export function getAdminProfile() {
+  return requestAdminProfile("GET");
+}
+
+export function updateAdminProfile(payload) {
+  return requestAdminProfile("PUT", payload);
+}
+
+export async function changeAdminPassword(payload) {
+  const token = localStorage.getItem("repairlink_auth_token");
+
+  if (!token) {
+    throw new Error("Authentication required.");
+  }
+
+  const response = await fetch(`${API_BASE_URL}/auth/admin/password`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+}

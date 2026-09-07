@@ -80,6 +80,7 @@ public class SecurityConfig {
                                         "/api/auth/signup",
                                         "/api/auth/login",
                                         "/api/health",
+                                        "/api/schedule/**",
                                         "/error"
                                 )
                                 .permitAll()

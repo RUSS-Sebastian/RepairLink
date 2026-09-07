@@ -152,6 +152,7 @@ function LoginPage() {
           label="Email address"
           name="email"
           type="email"
+          autoComplete="email"
           placeholder="you@example.com"
           value={values.email}
           onChange={handleChange}
@@ -163,6 +164,7 @@ function LoginPage() {
           label="Password"
           name="password"
           type="password"
+          autoComplete="current-password"
           placeholder="Enter your password"
           value={values.password}
           onChange={handleChange}

@@ -25,6 +25,24 @@ public class GlobalExceptionHandler {
                 .body(error);
     }
 
+    @ExceptionHandler(ScheduleNotFoundException.class)
+    public ResponseEntity<ApiError> handleScheduleNotFound(
+            ScheduleNotFoundException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                new ApiError("SCHEDULE_NOT_FOUND", exception.getMessage())
+        );
+    }
+
+    @ExceptionHandler(ScheduleOverlapException.class)
+    public ResponseEntity<ApiError> handleScheduleOverlap(
+            ScheduleOverlapException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                new ApiError("SCHEDULE_OVERLAP", exception.getMessage())
+        );
+    }
+
     @ExceptionHandler(PartNotFoundException.class)
     public ResponseEntity<ApiError> handlePartNotFound(
             PartNotFoundException exception
