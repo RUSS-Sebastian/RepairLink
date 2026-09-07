@@ -12,6 +12,7 @@ import ServiceRequestPage from "../pages/customer/ServiceRequestPage";
 import ProfilePage from "../pages/customer/ProfilePage";
 import PartsPage from "../pages/admin/PartsPage";
 import SchedulePage from "../pages/admin/SchedulePage";
+import AdditionalServicesPage from "../pages/admin/AdditionalServicesPage";
 import AdminProfilePage from "../pages/admin/AdminProfilePage";
 import AppLayout from "../layouts/AppLayout";
 import MainLayout from "../layouts/MainLayout";
@@ -177,7 +178,7 @@ function AppRoutes() {
         path={ROUTES.ADMIN_ADDITIONAL_SERVICES}
         element={
           <ProtectedAdminRoute>
-            <PagePlaceholder title="Additional Services" />
+            <AdditionalServicesPage />
           </ProtectedAdminRoute>
         }
       />
