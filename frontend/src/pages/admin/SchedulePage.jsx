@@ -63,9 +63,26 @@ const formatShortDate = (date) => {
 const toDateInput = (date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
+const formatTime = (value) => {
+  if (!value) return "--:--";
+  if (Array.isArray(value)) {
+    const [h, m] = value;
+    return `${String(h).padStart(2, "0")}:${String(m || 0).padStart(2, "0")}`;
+  }
+  if (typeof value === "string") {
+    return value.slice(0, 5);
+  }
+  return String(value).slice(0, 5);
+};
+
 const timeToMinutes = (value) => {
-  const [hours, minutes] = value.split(":").map(Number);
-  return hours * 60 + minutes;
+  if (!value) return 0;
+  if (Array.isArray(value)) {
+    return (value[0] || 0) * 60 + (value[1] || 0);
+  }
+  const str = typeof value === "string" ? value : String(value);
+  const [hours, minutes] = str.split(":").map(Number);
+  return (hours || 0) * 60 + (minutes || 0);
 };
 
 const minutesToTime = (value) =>
@@ -79,14 +96,13 @@ const getSlots = (configuration, day) => {
   )
     return [];
   const slots = [];
-  const opening = timeToMinutes(configuration.openingTime.slice(0, 5));
-  const closing = timeToMinutes(configuration.closingTime.slice(0, 5));
+  const opening = timeToMinutes(configuration.openingTime);
+  const closing = timeToMinutes(configuration.closingTime);
   const dayBreaks = (configuration.breaks || [])
     .filter((item) => item.dayOfWeek.toUpperCase() === day.toUpperCase())
     .sort(
       (first, second) =>
-        timeToMinutes(first.startTime.slice(0, 5)) -
-        timeToMinutes(second.startTime.slice(0, 5)),
+        timeToMinutes(first.startTime) - timeToMinutes(second.startTime),
     );
 
   let start = opening;
@@ -94,19 +110,19 @@ const getSlots = (configuration, day) => {
 
   while (start < closing) {
     const breakPeriod = dayBreaks.find((item) => {
-      const breakStart = timeToMinutes(item.startTime.slice(0, 5));
-      const breakEnd = timeToMinutes(item.endTime.slice(0, 5));
+      const breakStart = timeToMinutes(item.startTime);
+      const breakEnd = timeToMinutes(item.endTime);
       return start >= breakStart && start < breakEnd;
     });
 
     const nextBreak = dayBreaks.find(
       (item) =>
-        timeToMinutes(item.startTime.slice(0, 5)) > start &&
-        timeToMinutes(item.startTime.slice(0, 5)) < start + duration,
+        timeToMinutes(item.startTime) > start &&
+        timeToMinutes(item.startTime) < start + duration,
     );
 
     if (nextBreak) {
-      const nextBreakStart = timeToMinutes(nextBreak.startTime.slice(0, 5));
+      const nextBreakStart = timeToMinutes(nextBreak.startTime);
       slots.push({
         label: `${minutesToTime(start)} – ${minutesToTime(nextBreakStart)}`,
         isBreak: false,
@@ -117,10 +133,10 @@ const getSlots = (configuration, day) => {
 
     if (breakPeriod) {
       slots.push({
-        label: `${breakPeriod.startTime.slice(0, 5)} – ${breakPeriod.endTime.slice(0, 5)}`,
+        label: `${formatTime(breakPeriod.startTime)} – ${formatTime(breakPeriod.endTime)}`,
         isBreak: true,
       });
-      start = timeToMinutes(breakPeriod.endTime.slice(0, 5));
+      start = timeToMinutes(breakPeriod.endTime);
       continue;
     }
 
@@ -179,16 +195,16 @@ function Field({ label, value, onChange, type = "text", min, disabled }) {
   );
 }
 
-function SchedulePage({ mode = "list" }) {
+function SchedulePage({ mode }) {
   const navigate = useNavigate();
   const { configurationId } = useParams();
 
-  if (mode === "detail") {
+  if (mode === "detail" || (configurationId && configurationId !== "new")) {
     return (
       <ScheduleDetail configurationId={configurationId} navigate={navigate} />
     );
   }
-  if (mode === "create") {
+  if (mode === "create" || configurationId === "new") {
     return <ConfigurationWizard navigate={navigate} />;
   }
   return <ScheduleHistory navigate={navigate} />;
@@ -361,65 +377,78 @@ function ScheduleHistory({ navigate }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((item) => (
-                  <tr
-                    key={item.configurationId}
-                    className="border-b border-slate-100 last:border-0 hover:bg-blue-50/30"
-                  >
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-xs font-bold text-[#0261F3]">
-                          {item.name.replace("Config ", "C")}
-                        </span>
-                        <div>
-                          <p className="font-bold text-slate-900">
-                            {item.name}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {item.operatingDaysCount} operating days ·{" "}
-                            {item.slotDurationMinutes} min slots ·{" "}
-                            {item.slotCapacity} capacity
-                          </p>
+                {rows.map((item) => {
+                  const configId = item.configurationId || item.id;
+                  return (
+                    <tr
+                      key={configId}
+                      onClick={() => navigate(`/admin/scheduling/${configId}`)}
+                      className="cursor-pointer border-b border-slate-100 last:border-0 transition hover:bg-blue-50/40"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-xs font-bold text-[#0261F3]">
+                            {(item.name || "Config").replace("Config ", "C")}
+                          </span>
+                          <div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/admin/scheduling/${configId}`);
+                              }}
+                              className="text-left font-bold text-slate-900 transition hover:text-[#0261F3] hover:underline"
+                            >
+                              {item.name}
+                            </button>
+                            <p className="text-xs text-slate-500">
+                              {item.operatingDaysCount} operating days ·{" "}
+                              {item.slotDurationMinutes} min slots ·{" "}
+                              {item.slotCapacity} capacity
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 font-medium text-slate-700">
-                      {formatDate(item.startDate)}
-                    </td>
-                    <td className="px-6 py-4 font-medium text-slate-700">
-                      {formatDate(item.endDate)}
-                    </td>
-                    <td className="px-6 py-4">
-                      <StatusPill status={item.status} />
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            navigate(
-                              `/admin/scheduling/${item.configurationId}`,
-                            )
-                          }
-                          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-[#0261F3]"
-                        >
-                          <Eye size={14} />
-                          View details
-                        </button>
-                        {item.status === "UPCOMING" && (
+                      </td>
+                      <td className="px-6 py-4 font-medium text-slate-700">
+                        {formatDate(item.startDate)}
+                      </td>
+                      <td className="px-6 py-4 font-medium text-slate-700">
+                        {formatDate(item.endDate)}
+                      </td>
+                      <td className="px-6 py-4">
+                        <StatusPill status={item.status} />
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-2">
                           <button
                             type="button"
-                            onClick={() => setConfigurationToDelete(item)}
-                            className="rounded-lg border border-rose-100 p-2 text-rose-500 transition hover:bg-rose-50"
-                            title={`Delete ${item.name}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/admin/scheduling/${configId}`);
+                            }}
+                            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-[#0261F3]"
                           >
-                            <Trash2 size={15} />
+                            <Eye size={14} />
+                            View details
                           </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          {item.status === "UPCOMING" && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setConfigurationToDelete(item);
+                              }}
+                              className="rounded-lg border border-rose-100 p-2 text-rose-500 transition hover:bg-rose-50"
+                              title={`Delete ${item.name}`}
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -555,7 +584,29 @@ function ScheduleDetail({ configurationId, navigate }) {
   const [isAddingBlock, setIsAddingBlock] = useState(false);
   const [month, setMonth] = useState(new Date());
 
+  const newBlockDateConflict = useMemo(() => {
+    if (!newBlockDate || !configuration) return null;
+    const isAlreadyBlocked = (configuration.blockedDates || []).some(
+      (item) => item.blockedDate === newBlockDate,
+    );
+    if (isAlreadyBlocked) {
+      return `Date ${formatDate(newBlockDate)} is already blocked in this schedule.`;
+    }
+    if (newBlockDate < TODAY) {
+      return "Only future dates can be blocked.";
+    }
+    if (configuration.endDate && newBlockDate > configuration.endDate) {
+      return `Date cannot be after the schedule end date (${formatDate(configuration.endDate)}).`;
+    }
+    return null;
+  }, [newBlockDate, configuration]);
+
   const loadDetail = async () => {
+    if (!configurationId || configurationId === "undefined") {
+      setError("Invalid or missing configuration ID.");
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       setError("");
@@ -596,17 +647,25 @@ function ScheduleDetail({ configurationId, navigate }) {
           <ArrowLeft size={16} />
           Back to configuration history
         </button>
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
-          {error || "Configuration not found."}
+        <div className="flex items-center justify-between rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
+          <span>{error || "Configuration not found."}</span>
+          <button
+            type="button"
+            onClick={loadDetail}
+            className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-red-700"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );
   }
 
   const canEditBlockedDates = configuration.canEditBlockedDates;
-  const selectedDayIndex =
-    (new Date(`${selectedDate}T12:00:00`).getDay() + 6) % 7;
-  const selectedDay = WEEKDAYS[selectedDayIndex];
+  const selectedDayIndex = selectedDate
+    ? (new Date(`${selectedDate}T12:00:00`).getDay() + 6) % 7
+    : 0;
+  const selectedDay = WEEKDAYS[selectedDayIndex] || "Monday";
   const selectedDayUpper = selectedDay.toUpperCase();
   const isOperatingDay = (configuration.operatingDays || []).some(
     (d) => d.toUpperCase() === selectedDayUpper,
@@ -627,23 +686,6 @@ function ScheduleDetail({ configurationId, navigate }) {
       alert(err.message || "Failed to remove blocked date.");
     }
   };
-
-  const newBlockDateConflict = useMemo(() => {
-    if (!newBlockDate) return null;
-    const isAlreadyBlocked = (configuration.blockedDates || []).some(
-      (item) => item.blockedDate === newBlockDate,
-    );
-    if (isAlreadyBlocked) {
-      return `Date ${formatDate(newBlockDate)} is already blocked in this schedule.`;
-    }
-    if (newBlockDate < TODAY) {
-      return "Only future dates can be blocked.";
-    }
-    if (configuration.endDate && newBlockDate > configuration.endDate) {
-      return `Date cannot be after the schedule end date (${formatDate(configuration.endDate)}).`;
-    }
-    return null;
-  }, [newBlockDate, configuration.blockedDates, configuration.endDate]);
 
   const handleAddBlock = async () => {
     if (!newBlockDate || !newBlockReason.trim() || newBlockDateConflict) return;
@@ -788,7 +830,7 @@ function ScheduleDetail({ configurationId, navigate }) {
           />
           <DetailStat
             label="Daily hours"
-            value={`${configuration.openingTime.slice(0, 5)} – ${configuration.closingTime.slice(0, 5)}`}
+            value={`${formatTime(configuration.openingTime)} – ${formatTime(configuration.closingTime)}`}
           />
           <DetailStat
             label="Operating days"

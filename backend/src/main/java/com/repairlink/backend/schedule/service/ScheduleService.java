@@ -44,6 +44,7 @@ public class ScheduleService {
         this.userRepository = userRepository;
     }
 
+    @Transactional(readOnly = true)
     public SchedulePageResponse listConfigurations(LocalDate dateFrom, LocalDate dateTo, int page, int size) {
         Page<ScheduleConfiguration> configPage = configurationRepository.findByDateRange(
                 dateFrom,
@@ -86,6 +87,7 @@ public class ScheduleService {
         );
     }
 
+    @Transactional(readOnly = true)
     public ScheduleConfigurationDetailResponse getConfiguration(UUID configurationId) {
         ScheduleConfiguration config = configurationRepository.findById(configurationId)
                 .orElseThrow(() -> new ScheduleNotFoundException("Schedule configuration not found with ID: " + configurationId));
@@ -335,6 +337,7 @@ public class ScheduleService {
         return new SimulateScheduleResponse(calculatedEnd, slotsByDay);
     }
 
+    @Transactional(readOnly = true)
     public DailySlotsResponse getDailySlots(LocalDate date) {
         List<ScheduleConfiguration> configs = configurationRepository.findConfigurationsForDate(date);
         if (configs.isEmpty()) {

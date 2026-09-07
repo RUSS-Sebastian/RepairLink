@@ -4,6 +4,7 @@ import com.repairlink.backend.schedule.entity.ScheduleConfiguration;
 import com.repairlink.backend.schedule.entity.ScheduleStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,6 +17,10 @@ import java.util.UUID;
 
 @Repository
 public interface ScheduleConfigurationRepository extends JpaRepository<ScheduleConfiguration, UUID> {
+
+    @Override
+    @EntityGraph(attributePaths = {"breaks", "blockedDates"})
+    Optional<ScheduleConfiguration> findById(UUID id);
 
     Optional<ScheduleConfiguration> findFirstByStatus(ScheduleStatus status);
 
@@ -55,6 +60,7 @@ public interface ScheduleConfigurationRepository extends JpaRepository<ScheduleC
         }
     }
 
+    @EntityGraph(attributePaths = {"breaks", "blockedDates"})
     @Query("""
         SELECT c FROM ScheduleConfiguration c
         WHERE :date >= c.startDate AND :date <= c.endDate
