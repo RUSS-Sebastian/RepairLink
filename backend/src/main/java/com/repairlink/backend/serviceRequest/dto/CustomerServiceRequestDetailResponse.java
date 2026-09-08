@@ -8,6 +8,7 @@ import java.util.UUID;
 
 public record CustomerServiceRequestDetailResponse(
         UUID id,
+        String requestCode,
         String status,
         VehicleSummaryDto vehicle,
         String problemDescription,

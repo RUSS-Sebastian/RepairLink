@@ -19,6 +19,9 @@ public class ServiceRequest {
     @Column(name = "service_request_id", nullable = false, updatable = false)
     private UUID serviceRequestId;
 
+    @Column(name = "request_code", nullable = false, unique = true, length = 30)
+    private String requestCode;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "customer_id", nullable = false)
     private UserAccount customer;
@@ -84,6 +87,9 @@ public class ServiceRequest {
     // Getters and setters
     public UUID getServiceRequestId() { return serviceRequestId; }
     public void setServiceRequestId(UUID serviceRequestId) { this.serviceRequestId = serviceRequestId; }
+
+    public String getRequestCode() { return requestCode; }
+    public void setRequestCode(String requestCode) { this.requestCode = requestCode; }
 
     public UserAccount getCustomer() { return customer; }
     public void setCustomer(UserAccount customer) { this.customer = customer; }

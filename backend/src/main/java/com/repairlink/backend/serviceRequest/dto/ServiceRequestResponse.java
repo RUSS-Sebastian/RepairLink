@@ -7,6 +7,7 @@ import java.util.UUID;
 
 public record ServiceRequestResponse(
         UUID id,
+        String requestCode,
         String status,
         String vehicleName,
         String problemSummary,

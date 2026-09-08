@@ -107,12 +107,13 @@ export default function ActiveServicePage() {
     );
   }, [requests]);
 
-  // Filter by search query (vehicle nickname, make, model, license, problem)
+  // Filter by search query (request code, vehicle nickname, make, model, license, problem)
   const filteredRequests = useMemo(() => {
     if (!searchQuery.trim()) return pendingRequests;
     const q = searchQuery.toLowerCase();
     return pendingRequests.filter((req) => {
       const v = req.vehicle;
+      const codeMatch = req.requestCode?.toLowerCase().includes(q);
       const vehicleMatch =
         v?.nickname?.toLowerCase().includes(q) ||
         v?.make?.toLowerCase().includes(q) ||
@@ -120,7 +121,7 @@ export default function ActiveServicePage() {
         v?.licensePlate?.toLowerCase().includes(q);
       const problemMatch = req.problemDescription?.toLowerCase().includes(q);
       const slotMatch = req.preferredTimeSlot?.toLowerCase().includes(q);
-      return vehicleMatch || problemMatch || slotMatch;
+      return codeMatch || vehicleMatch || problemMatch || slotMatch;
     });
   }, [pendingRequests, searchQuery]);
 
@@ -209,7 +210,7 @@ export default function ActiveServicePage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by vehicle nickname, plate, or symptom..."
+                placeholder="Search by request code (REQ-...), vehicle, plate, or symptom..."
                 className="w-full rounded-xl border border-slate-200 bg-slate-50/70 py-2 pl-9 pr-3 text-xs text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
               />
               {searchQuery && (
@@ -409,6 +410,14 @@ function ServiceRequestCard({
       {/* Top Bar: Status + Vehicle Badge + Timestamp */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/60 px-5 py-4 sm:px-6">
         <div className="flex flex-wrap items-center gap-3">
+          {/* Request Code Badge */}
+          {request.requestCode && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 font-mono text-xs font-extrabold text-blue-700 shadow-sm">
+              <span className="text-[10px] font-bold text-blue-400">#</span>
+              {request.requestCode}
+            </span>
+          )}
+
           {/* Status Badge */}
           <span className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
             <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />

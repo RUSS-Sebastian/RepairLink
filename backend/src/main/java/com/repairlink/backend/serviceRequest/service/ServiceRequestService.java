@@ -132,11 +132,18 @@ public class ServiceRequestService {
         Instant now = Instant.now();
         Optional<SlotHold> activeHold = slotHoldRepository.findActiveCustomerHold(customerId, preferredDate, timeSlot, now);
         if (activeHold.isEmpty()) {
+            activeHold = slotHoldRepository.findActiveHoldByCustomer(customerId, now)
+                    .filter(h -> h.getServiceDate().equals(preferredDate));
+        }
+
+        if (activeHold.isEmpty()) {
             scheduleService.validateSlotCapacity(preferredDate, timeSlot, customerId);
         }
 
         // Build entity
         ServiceRequest request = new ServiceRequest();
+        String requestCode = requestRepository.getNextRequestCode();
+        request.setRequestCode(requestCode);
         request.setCustomer(customer);
         request.setVehicle(vehicle);
         request.setProblemDescription(problem.trim());
@@ -182,6 +189,7 @@ public class ServiceRequestService {
 
         return new ServiceRequestResponse(
                 saved.getServiceRequestId(),
+                saved.getRequestCode(),
                 saved.getStatus().name(),
                 vehicleName,
                 saved.getProblemDescription().length() > 100
@@ -237,6 +245,7 @@ public class ServiceRequestService {
 
             return new CustomerServiceRequestDetailResponse(
                     req.getServiceRequestId(),
+                    req.getRequestCode(),
                     req.getStatus().name(),
                     vehicleDto,
                     req.getProblemDescription(),

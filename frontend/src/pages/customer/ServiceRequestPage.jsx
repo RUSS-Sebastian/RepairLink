@@ -14,6 +14,7 @@ import {
   ChevronRight,
   CircleHelp,
   Clock3,
+  Copy,
   FileImage,
   ImagePlus,
   LoaderCircle,
@@ -1419,16 +1420,47 @@ function RequestRail({ state, selectedVehicle }) {
 
 /* ── Submitted View ── */
 function SubmittedView({ request, onStartNew }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyCode = () => {
+    if (request.requestCode) {
+      navigator.clipboard.writeText(request.requestCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-xl items-center justify-center">
       <div className="w-full rounded-3xl border border-emerald-200 bg-white p-8 text-center shadow-xl shadow-emerald-900/5 sm:p-12">
         <span className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
           <CheckCircle2 size={42} />
         </span>
-        <p className="mt-6 text-xs font-bold uppercase tracking-[0.2em] text-emerald-600">
-          Request received
-        </p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
+
+        {request.requestCode && (
+          <div className="mt-6 inline-flex items-center gap-2 rounded-2xl border border-blue-200 bg-blue-50/80 px-4 py-1.5 shadow-sm">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600">
+              Request Code:
+            </span>
+            <span className="font-mono text-base font-extrabold text-blue-900">
+              {request.requestCode}
+            </span>
+            <button
+              type="button"
+              onClick={handleCopyCode}
+              className="ml-1 rounded-md p-1 text-blue-600 hover:bg-blue-100 hover:text-blue-800 transition"
+              title="Copy request code"
+            >
+              {copied ? (
+                <Check size={14} className="text-emerald-600" />
+              ) : (
+                <Copy size={14} />
+              )}
+            </button>
+          </div>
+        )}
+
+        <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-950">
           Your service request is in.
         </h1>
         <p className="mt-3 text-sm leading-6 text-slate-500">
@@ -1436,6 +1468,14 @@ function SubmittedView({ request, onStartNew }) {
           appointment.
         </p>
         <div className="mt-7 rounded-2xl bg-slate-50 p-4 text-left">
+          {request.requestCode && (
+            <div className="flex justify-between gap-4 text-sm pb-2.5 mb-2.5 border-b border-slate-200/60">
+              <span className="font-semibold text-slate-500">Request Code</span>
+              <span className="font-mono font-bold text-blue-700">
+                {request.requestCode}
+              </span>
+            </div>
+          )}
           <div className="flex justify-between gap-4 text-sm">
             <span className="font-semibold text-slate-500">Status</span>
             <span className="font-bold text-emerald-700">{request.status}</span>
@@ -1455,14 +1495,22 @@ function SubmittedView({ request, onStartNew }) {
             </div>
           )}
         </div>
-        <button
-          type="button"
-          onClick={onStartNew}
-          className="mt-7 inline-flex items-center gap-2 rounded-xl bg-[#0261F3] px-5 py-3 text-sm font-bold text-white"
-        >
-          <RefreshCw size={17} />
-          Create another request
-        </button>
+        <div className="mt-7 flex flex-wrap justify-center gap-3">
+          <Link
+            to={ROUTES.ACTIVE_SERVICE}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:border-slate-300"
+          >
+            View in Active Services
+          </Link>
+          <button
+            type="button"
+            onClick={onStartNew}
+            className="inline-flex items-center gap-2 rounded-xl bg-[#0261F3] px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700"
+          >
+            <RefreshCw size={17} />
+            Create another request
+          </button>
+        </div>
       </div>
     </div>
   );
