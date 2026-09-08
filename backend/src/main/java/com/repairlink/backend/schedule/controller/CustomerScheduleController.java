@@ -2,6 +2,7 @@ package com.repairlink.backend.schedule.controller;
 
 import com.repairlink.backend.schedule.dto.DailySlotsResponse;
 import com.repairlink.backend.schedule.service.ScheduleService;
+import com.repairlink.backend.schedule.dto.ScheduleWindowResponse;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,6 +27,11 @@ public class CustomerScheduleController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
     ) {
         return ResponseEntity.ok(scheduleService.getDailySlots(date));
+    }
+
+    @GetMapping("/current-window")
+    public ResponseEntity<ScheduleWindowResponse> getCurrentWindow() {
+        return ResponseEntity.ok(scheduleService.getCurrentWindow());
     }
 }
 

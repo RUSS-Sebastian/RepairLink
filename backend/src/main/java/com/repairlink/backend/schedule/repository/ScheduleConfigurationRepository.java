@@ -19,7 +19,7 @@ import java.util.UUID;
 public interface ScheduleConfigurationRepository extends JpaRepository<ScheduleConfiguration, UUID> {
 
     @Override
-    @EntityGraph(attributePaths = {"breaks", "blockedDates"})
+    @EntityGraph(attributePaths = {"breaks"})
     Optional<ScheduleConfiguration> findById(UUID id);
 
     Optional<ScheduleConfiguration> findFirstByStatus(ScheduleStatus status);
@@ -60,7 +60,7 @@ public interface ScheduleConfigurationRepository extends JpaRepository<ScheduleC
         }
     }
 
-    @EntityGraph(attributePaths = {"breaks", "blockedDates"})
+    @EntityGraph(attributePaths = {"breaks"})
     @Query("""
         SELECT c FROM ScheduleConfiguration c
         WHERE :date >= c.startDate AND :date <= c.endDate

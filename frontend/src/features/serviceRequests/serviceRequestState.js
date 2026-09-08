@@ -1,79 +1,32 @@
-export const MOCK_VEHICLES = [
-  {
-    id: "vehicle-corolla",
-    nickname: "Daily Driver",
-    make: "Toyota",
-    model: "Corolla",
-    year: 2023,
-    licensePlate: "YGN-3A-2023",
-    vehicleType: "Normal Car",
-    color: "Pearl White",
-    mileage: 18500,
-    fuelType: "Petrol",
-    transmission: "Automatic",
-  },
-  {
-    id: "vehicle-tesla",
-    nickname: "EV Beast",
-    make: "Tesla",
-    model: "Model 3",
-    year: 2024,
-    licensePlate: "YGN-7E-2024",
-    vehicleType: "EV",
-    color: "Midnight Silver",
-    mileage: 8200,
-    fuelType: null,
-    transmission: null,
-  },
-];
-
-export const TIME_SLOTS = [
-  { time: "09:00", spaces: 2, full: false },
-  { time: "10:00", spaces: 1, full: false },
-  { time: "11:00", spaces: 0, full: true },
-  { time: "12:00", spaces: 3, full: false },
-  { time: "14:00", spaces: 2, full: false },
-  { time: "15:00", spaces: 1, full: false },
-  { time: "16:00", spaces: 0, full: true },
-];
-
-export const ADDITIONAL_SERVICES = [
-  "Interior vacuum & cleaning",
-  "Exterior wash & wax",
-  "Tire rotation",
-  "AC system check",
-  "Battery health check",
-];
-
 export const STEPS = [
   {
     label: "Vehicle",
     title: "Which vehicle needs a little care?",
-    description: "Select the vehicle you’d like to book a service for.",
+    description: "Select the vehicle you'd like to book a service for.",
   },
   {
     label: "Problem",
-    title: "Tell us what’s going on.",
+    title: "Tell us what's going on.",
     description:
-      "Describe what you’ve noticed. Leave the diagnosis to our technicians.",
+      "Describe what you've noticed. Leave the diagnosis to our technicians.",
   },
   {
-    label: "Media",
-    title: "A little context goes a long way.",
+    label: "Photos",
+    title: "A picture is worth a thousand words.",
     description:
-      "Add photos or a video to help explain the symptoms. This step is optional.",
+      "Add photos to help explain the symptoms. This step is optional. Max 5 photos, 10MB each.",
   },
   {
     label: "Date",
-    title: "Let’s find a day that works.",
+    title: "Let's find a day that works.",
     description:
-      "Choose your preferred service date. The service center will confirm your appointment.",
+      "Choose your preferred service date from the current scheduling window.",
   },
   {
     label: "Time slot",
     title: "Make time for a smoother ride.",
     description:
-      "Pick an available arrival time. We’ll hold your selection for five minutes.",
+      "Pick an available arrival time. We'll hold your selection for five minutes.",
   },
   {
     label: "Handover",
@@ -84,7 +37,7 @@ export const STEPS = [
     label: "Extras",
     title: "A little extra care?",
     description:
-      "Round out your visit with optional non-repair services. No extras? No problem.",
+      "Round out your visit with optional services. No extras? No problem.",
   },
   {
     label: "Review",
@@ -101,28 +54,33 @@ export const STEPS = [
 ];
 
 export const HOLD_DURATION = 5 * 60 * 1000;
-export const SLOT_UNAVAILABLE_MESSAGE =
-  "Selected slot is no longer available. Your other information has been preserved. Please choose another slot.";
 
-export function createInitialState(vehicles = MOCK_VEHICLES) {
+export const MAX_PHOTOS = 5;
+export const MAX_PHOTO_SIZE = 10 * 1024 * 1024; // 10MB
+export const ACCEPTED_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+export function createInitialState(vehicles = []) {
   return {
     step: 0,
-    vehicles: vehicles.map((vehicle) => ({ ...vehicle })),
+    vehicles: vehicles.map((v) => ({ ...v })),
     vehicleId: "",
     problem: "",
-    media: [],
+    media: [], // { id, file: File, filename, sizeMb, previewUrl, status: 'Ready' }
     date: "",
-    slot: "",
+    slot: "", // full slot label like "09:00 \u2013 10:00"
     holdUntil: null,
     secondsLeft: 0,
     holdExpired: false,
     handover: "Drop-off",
     pickupLocation: "",
-    additionalServices: [],
+    selectedServiceIds: [], // array of UUID strings
+    availableServicesList: [], // from backend
+    scheduleWindow: null, // { startDate, endDate, operatingDays, ... }
+    availableSlots: [], // SlotDto[] from backend
+    slotsLoading: false,
     error: "",
     pageError: "",
-    unavailableSlots: [],
-    requests: [],
+    submitting: false,
     submittedRequest: null,
   };
 }
@@ -134,7 +92,7 @@ export function getSecondsLeft(holdUntil, now) {
 export function validateStep(state, step = state.step) {
   if (
     step === 0 &&
-    !state.vehicles.some((vehicle) => vehicle.id === state.vehicleId)
+    !state.vehicles.some((v) => v.id === state.vehicleId)
   )
     return "Please select a vehicle.";
   if (step === 1 && state.problem.trim().length < 10)
@@ -146,22 +104,14 @@ export function validateStep(state, step = state.step) {
   return "";
 }
 
-export function createMockMedia(
-  sequence,
-  failed = false,
-  random = Math.random,
-) {
-  const type = random() < 0.5 ? "image" : "video";
-  return {
-    id: `media-${sequence}`,
-    type,
-    filename:
-      type === "image"
-        ? `photo_${sequence}.jpg`
-        : `vehicle_clip_${sequence}.mp4`,
-    size: Number((0.5 + random() * (type === "image" ? 7.5 : 39.5)).toFixed(1)),
-    status: failed ? "Upload Failed" : "Uploaded",
-  };
+export function validatePhoto(file) {
+  if (!ACCEPTED_PHOTO_TYPES.includes(file.type)) {
+    return `"${file.name}" is not a supported image type. Use JPEG, PNG, or WebP.`;
+  }
+  if (file.size > MAX_PHOTO_SIZE) {
+    return `"${file.name}" exceeds the 10MB size limit.`;
+  }
+  return "";
 }
 
 function expireHold(state) {
@@ -174,39 +124,35 @@ function expireHold(state) {
   };
 }
 
-// Time, randomness, and IDs arrive in actions to keep transitions pure and testable.
 export function serviceRequestReducer(state, action) {
   if (state.submittedRequest && action.type !== "START_NEW") return state;
 
   switch (action.type) {
     case "UPDATE": {
       if (
-        ![
-          "vehicleId",
-          "problem",
-          "date",
-          "handover",
-          "pickupLocation",
-        ].includes(action.field)
+        !["vehicleId", "problem", "date", "handover", "pickupLocation"].includes(
+          action.field,
+        )
       )
         return state;
       const next = { ...state, [action.field]: action.value, error: "" };
-      return action.field === "date" && action.value !== state.date
-        ? {
-            ...next,
-            slot: "",
-            holdUntil: null,
-            secondsLeft: 0,
-            holdExpired: false,
-            pageError: "",
-          }
-        : next;
+      if (action.field === "date" && action.value !== state.date) {
+        return {
+          ...next,
+          slot: "",
+          holdUntil: null,
+          secondsLeft: 0,
+          holdExpired: false,
+          pageError: "",
+          availableSlots: [],
+          slotsLoading: true,
+        };
+      }
+      return next;
     }
     case "SET_VEHICLES": {
-      const vehicles = action.vehicles.map((vehicle) => ({ ...vehicle }));
-      const vehicleId = vehicles.some(
-        (vehicle) => vehicle.id === state.vehicleId,
-      )
+      const vehicles = action.vehicles.map((v) => ({ ...v }));
+      const vehicleId = vehicles.some((v) => v.id === state.vehicleId)
         ? state.vehicleId
         : "";
       return { ...state, vehicles, vehicleId, error: "" };
@@ -218,35 +164,41 @@ export function serviceRequestReducer(state, action) {
         vehicleId: action.vehicle.id,
         error: "",
       };
-    case "ADD_MEDIA":
-      return { ...state, media: [...state.media, action.file] };
-    case "REMOVE_MEDIA":
+
+    // Photo actions
+    case "ADD_PHOTOS": {
+      const newMedia = [...state.media];
+      for (const entry of action.photos) {
+        if (newMedia.length >= MAX_PHOTOS) break;
+        newMedia.push(entry);
+      }
+      return { ...state, media: newMedia, error: "" };
+    }
+    case "REMOVE_PHOTO": {
+      const removed = state.media.find((m) => m.id === action.id);
+      if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl);
       return {
         ...state,
-        media: state.media.filter((file) => file.id !== action.id),
+        media: state.media.filter((m) => m.id !== action.id),
       };
-    case "TOGGLE_SERVICE":
-      if (!ADDITIONAL_SERVICES.includes(action.service)) return state;
-      return {
-        ...state,
-        additionalServices: state.additionalServices.includes(action.service)
-          ? state.additionalServices.filter(
-              (service) => service !== action.service,
-            )
-          : [...state.additionalServices, action.service],
-      };
+    }
+
+    // Schedule window
+    case "SET_SCHEDULE_WINDOW":
+      return { ...state, scheduleWindow: action.window };
+
+    // Slots
+    case "SET_SLOTS_LOADING":
+      return { ...state, slotsLoading: action.loading };
+    case "SET_AVAILABLE_SLOTS":
+      return { ...state, availableSlots: action.slots, slotsLoading: false };
+
+    // Slot selection
     case "SELECT_SLOT": {
-      const slot = TIME_SLOTS.find((item) => item.time === action.time);
-      if (
-        !state.date ||
-        !slot ||
-        slot.full ||
-        state.unavailableSlots.includes(`${state.date}/${action.time}`)
-      )
-        return state;
+      if (!state.date || !action.label) return state;
       return {
         ...state,
-        slot: slot.time,
+        slot: action.label,
         holdUntil: action.now + HOLD_DURATION,
         secondsLeft: 300,
         holdExpired: false,
@@ -257,8 +209,25 @@ export function serviceRequestReducer(state, action) {
     case "TICK": {
       if (!state.holdUntil) return state;
       const secondsLeft = getSecondsLeft(state.holdUntil, action.now);
-      return secondsLeft === 0 ? expireHold(state) : { ...state, secondsLeft };
+      return secondsLeft === 0
+        ? expireHold(state)
+        : { ...state, secondsLeft };
     }
+
+    // Additional services (from DB)
+    case "SET_AVAILABLE_SERVICES":
+      return { ...state, availableServicesList: action.services };
+    case "TOGGLE_SERVICE_BY_ID": {
+      const id = action.serviceId;
+      return {
+        ...state,
+        selectedServiceIds: state.selectedServiceIds.includes(id)
+          ? state.selectedServiceIds.filter((s) => s !== id)
+          : [...state.selectedServiceIds, id],
+      };
+    }
+
+    // Navigation
     case "BACK":
       return { ...state, step: Math.max(0, state.step - 1), error: "" };
     case "GO_BACK":
@@ -275,65 +244,26 @@ export function serviceRequestReducer(state, action) {
         ? { ...current, error }
         : { ...current, step: Math.min(8, current.step + 1), error: "" };
     }
-    case "SUBMIT": {
-      if (state.step !== 8) return state;
-      const current = !getSecondsLeft(state.holdUntil, action.now)
-        ? expireHold(state)
-        : state;
-      for (const step of [0, 1, 3, 4, 5]) {
-        const error = validateStep(current, step);
-        if (error) return { ...current, step, error };
-      }
-      if (action.random < 0.2) {
-        return {
-          ...current,
-          step: 4,
-          slot: "",
-          holdUntil: null,
-          secondsLeft: 0,
-          holdExpired: false,
-          error: "",
-          pageError: SLOT_UNAVAILABLE_MESSAGE,
-          unavailableSlots: [
-            ...current.unavailableSlots,
-            `${current.date}/${state.slot}`,
-          ],
-        };
-      }
-      const request = {
-        id: action.id,
-        createdAt: new Date(action.now).toISOString(),
-        status: "Pending Service Center Review",
-        vehicle: {
-          ...current.vehicles.find(
-            (vehicle) => vehicle.id === current.vehicleId,
-          ),
-        },
-        problem: current.problem.trim(),
-        media: current.media.map((file) => ({ ...file })),
-        preferredDate: current.date,
-        timeSlot: current.slot,
-        handover: current.handover,
-        pickupLocation:
-          current.handover === "Pickup" ? current.pickupLocation.trim() : null,
-        additionalServices: [...current.additionalServices],
-      };
+
+    // Submit lifecycle
+    case "SUBMIT_START":
+      return { ...state, submitting: true, error: "", pageError: "" };
+    case "SUBMIT_SUCCESS":
       return {
-        ...current,
+        ...state,
+        submitting: false,
         holdUntil: null,
         secondsLeft: 0,
         error: "",
         pageError: "",
-        submittedRequest: request,
-        requests: [...current.requests, request],
+        submittedRequest: action.response,
       };
-    }
+    case "SUBMIT_ERROR":
+      return { ...state, submitting: false, pageError: action.message };
+
     case "START_NEW":
-      return {
-        ...createInitialState(state.vehicles),
-        requests: state.requests,
-        unavailableSlots: state.unavailableSlots,
-      };
+      return createInitialState(state.vehicles);
+
     default:
       return state;
   }

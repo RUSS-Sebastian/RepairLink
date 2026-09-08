@@ -81,12 +81,15 @@ public class SecurityConfig {
                                         "/api/auth/login",
                                         "/api/health",
                                         "/api/schedule/**",
+                                        "/uploads/**",
                                         "/error"
                                 )
                                 .permitAll()
                                 .requestMatchers("/api/auth/customers/**")
                                 .hasRole("CUSTOMER")
                                 .requestMatchers("/api/vehicles", "/api/vehicles/**")
+                                .hasRole("CUSTOMER")
+                                .requestMatchers("/api/customer/**")
                                 .hasRole("CUSTOMER")
                                 .requestMatchers("/api/admin/**")
                                 .hasRole("ADMIN")

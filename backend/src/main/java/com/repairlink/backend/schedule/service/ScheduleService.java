@@ -427,5 +427,20 @@ public class ScheduleService {
 
         return slots;
     }
+
+    @Transactional(readOnly = true)
+    public ScheduleWindowResponse getCurrentWindow() {
+        return configurationRepository.findFirstByStatus(ScheduleStatus.CURRENT)
+                .map(config -> new ScheduleWindowResponse(
+                        config.getName(),
+                        config.getStartDate(),
+                        config.getEndDate(),
+                        config.getOperatingDays(),
+                        config.getOpeningTime(),
+                        config.getClosingTime(),
+                        config.getSlotDurationMinutes()
+                ))
+                .orElse(ScheduleWindowResponse.empty());
+    }
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useState } from "react";
+import { useEffect, useCallback, useReducer, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   AlertCircle,
@@ -6,6 +6,7 @@ import {
   ArrowRight,
   BatteryCharging,
   CalendarDays,
+  Camera,
   CarFront,
   Check,
   CheckCircle2,
@@ -14,7 +15,8 @@ import {
   CircleHelp,
   Clock3,
   FileImage,
-  FileVideo,
+  ImagePlus,
+  LoaderCircle,
   MapPin,
   PackageCheck,
   Plus,
@@ -25,17 +27,23 @@ import {
 } from "lucide-react";
 
 import {
-  ADDITIONAL_SERVICES,
   createInitialState,
-  createMockMedia,
   serviceRequestReducer,
   STEPS,
-  TIME_SLOTS,
+  HOLD_DURATION,
+  MAX_PHOTOS,
+  ACCEPTED_PHOTO_TYPES,
+  validatePhoto,
+  validateStep,
+  getSecondsLeft,
 } from "../../features/serviceRequests/serviceRequestState";
+import {
+  getCurrentScheduleWindow,
+  getAvailableSlots,
+  getAdditionalServices,
+  submitServiceRequest,
+} from "../../features/serviceRequests/serviceRequestApi";
 import { useVehicles } from "../../context/VehicleContext";
-
-const today = new Date();
-const localDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
 function ServiceRequestPage() {
   const {
@@ -48,7 +56,7 @@ function ServiceRequestPage() {
     [],
     createInitialState,
   );
-  const [mediaSequence, setMediaSequence] = useState(1);
+  const [photoError, setPhotoError] = useState("");
 
   useEffect(() => {
     dispatch({ type: "SET_VEHICLES", vehicles });
@@ -63,24 +71,80 @@ function ServiceRequestPage() {
     return () => window.clearInterval(timer);
   }, [state.holdUntil]);
 
-  const selectedVehicle = state.vehicles.find(
-    (vehicle) => vehicle.id === state.vehicleId,
-  );
-  const step = STEPS[state.step];
-  const uploadedMediaCount = state.media.filter(
-    (file) => file.status === "Uploaded",
-  ).length;
+  // Load schedule window once
+  useEffect(() => {
+    getCurrentScheduleWindow()
+      .then((window) => dispatch({ type: "SET_SCHEDULE_WINDOW", window }))
+      .catch(() => {});
+  }, []);
 
-  const update = (field, value) => dispatch({ type: "UPDATE", field, value });
+  // Load slots when date changes
+  useEffect(() => {
+    if (!state.date) return;
+    dispatch({ type: "SET_SLOTS_LOADING", loading: true });
+    getAvailableSlots(state.date)
+      .then((data) =>
+        dispatch({ type: "SET_AVAILABLE_SLOTS", slots: data.slots || [] }),
+      )
+      .catch(() =>
+        dispatch({ type: "SET_AVAILABLE_SLOTS", slots: [] }),
+      );
+  }, [state.date]);
+
+  // Load additional services when vehicle changes
+  const selectedVehicle = state.vehicles.find((v) => v.id === state.vehicleId);
+  useEffect(() => {
+    if (!selectedVehicle) return;
+    const vehicleType =
+      selectedVehicle.vehicleType === "EV" ? "EV" : "NORMAL_CAR";
+    getAdditionalServices(vehicleType)
+      .then((services) =>
+        dispatch({ type: "SET_AVAILABLE_SERVICES", services }),
+      )
+      .catch(() => dispatch({ type: "SET_AVAILABLE_SERVICES", services: [] }));
+  }, [selectedVehicle?.id]);
+
+  const step = STEPS[state.step];
+
   const goNext = () => dispatch({ type: "NEXT", now: Date.now() });
   const goBack = () => dispatch({ type: "BACK" });
-  const submit = () =>
-    dispatch({
-      type: "SUBMIT",
-      now: Date.now(),
-      random: Math.random(),
-      id: `request-${Date.now()}`,
-    });
+
+  const submit = async () => {
+    // Validate all required steps
+    for (const s of [0, 1, 3, 4, 5]) {
+      const error = validateStep(state, s);
+      if (error) {
+        dispatch({ type: "BACK" }); // handled by error display
+        return;
+      }
+    }
+
+    dispatch({ type: "SUBMIT_START" });
+
+    const fd = new FormData();
+    fd.append("vehicleId", state.vehicleId);
+    fd.append("problem", state.problem.trim());
+    fd.append("preferredDate", state.date);
+    fd.append("timeSlot", state.slot);
+    fd.append(
+      "handoverMethod",
+      state.handover === "Pickup" ? "PICKUP" : "DROP_OFF",
+    );
+    if (state.handover === "Pickup") {
+      fd.append("pickupLocation", state.pickupLocation.trim());
+    }
+    state.selectedServiceIds.forEach((id) =>
+      fd.append("additionalServiceIds", id),
+    );
+    state.media.forEach((m) => fd.append("photos", m.file));
+
+    try {
+      const response = await submitServiceRequest(fd);
+      dispatch({ type: "SUBMIT_SUCCESS", response });
+    } catch (err) {
+      dispatch({ type: "SUBMIT_ERROR", message: err.message });
+    }
+  };
 
   if (state.submittedRequest) {
     return (
@@ -154,9 +218,8 @@ function ServiceRequestPage() {
               selectedVehicle={selectedVehicle}
               vehiclesLoading={vehiclesLoading}
               vehiclesError={vehiclesError}
-              mediaSequence={mediaSequence}
-              setMediaSequence={setMediaSequence}
-              minDate={localDate}
+              photoError={photoError}
+              setPhotoError={setPhotoError}
             />
             <div className="mt-8 flex items-center justify-between gap-3 border-t border-slate-100 pt-5">
               <button
@@ -171,9 +234,15 @@ function ServiceRequestPage() {
               <button
                 type="button"
                 onClick={state.step === STEPS.length - 1 ? submit : goNext}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#0261F3] px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700"
+                disabled={state.submitting}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#0261F3] px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700 disabled:opacity-50"
               >
-                {state.step === STEPS.length - 1 ? (
+                {state.submitting ? (
+                  <>
+                    <LoaderCircle size={17} className="animate-spin" />
+                    Submitting...
+                  </>
+                ) : state.step === STEPS.length - 1 ? (
                   <>
                     <PackageCheck size={17} />
                     Submit Request
@@ -193,6 +262,8 @@ function ServiceRequestPage() {
     </div>
   );
 }
+
+/* ─── Sub-components ─── */
 
 function StepIndicator({ currentStep, onSelect }) {
   return (
@@ -231,15 +302,8 @@ function StepIndicator({ currentStep, onSelect }) {
 
 function StepIcon({ step }) {
   const icons = [
-    CarFront,
-    CircleHelp,
-    Upload,
-    CalendarDays,
-    Clock3,
-    MapPin,
-    Sparkles,
-    CheckCircle2,
-    PackageCheck,
+    CarFront, CircleHelp, Camera, CalendarDays, Clock3,
+    MapPin, Sparkles, CheckCircle2, PackageCheck,
   ];
   const Icon = icons[step];
   return <Icon size={22} />;
@@ -247,297 +311,256 @@ function StepIcon({ step }) {
 
 function AlertBanner({ message }) {
   return (
-    <div
-      role="alert"
-      className="mb-5 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold leading-6 text-red-700"
-    >
-      <AlertCircle className="mt-0.5 shrink-0" size={18} />
+    <div className="mb-5 flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+      <AlertCircle size={18} className="shrink-0" />
       {message}
     </div>
   );
 }
 
-function StepContent({
-  state,
-  dispatch,
-  selectedVehicle,
-  vehiclesLoading,
-  vehiclesError,
-  mediaSequence,
-  setMediaSequence,
-  minDate,
-}) {
+function StepContent({ state, dispatch, selectedVehicle, vehiclesLoading, vehiclesError, photoError, setPhotoError }) {
   switch (state.step) {
     case 0:
-      return (
-        <VehicleStep
-          state={state}
-          dispatch={dispatch}
-          selectedVehicle={selectedVehicle}
-          isLoading={vehiclesLoading}
-          loadError={vehiclesError}
-        />
-      );
+      return <VehicleStep state={state} dispatch={dispatch} loading={vehiclesLoading} error={vehiclesError} />;
     case 1:
       return <ProblemStep state={state} dispatch={dispatch} />;
     case 2:
-      return (
-        <MediaStep
-          state={state}
-          dispatch={dispatch}
-          mediaSequence={mediaSequence}
-          setMediaSequence={setMediaSequence}
-        />
-      );
+      return <PhotoStep state={state} dispatch={dispatch} photoError={photoError} setPhotoError={setPhotoError} />;
     case 3:
-      return <DateStep state={state} dispatch={dispatch} minDate={minDate} />;
+      return <DateStep state={state} dispatch={dispatch} />;
     case 4:
       return <TimeStep state={state} dispatch={dispatch} />;
     case 5:
       return <HandoverStep state={state} dispatch={dispatch} />;
     case 6:
-      return <ServicesStep state={state} dispatch={dispatch} />;
+      return <ExtrasStep state={state} dispatch={dispatch} />;
     case 7:
       return <ReviewStep state={state} selectedVehicle={selectedVehicle} />;
-    default:
+    case 8:
       return <SubmitStep />;
+    default:
+      return null;
   }
 }
 
-function VehicleStep({ state, dispatch, isLoading, loadError }) {
-  if (isLoading)
+/* ── Step 0: Vehicle ── */
+function VehicleStep({ state, dispatch, loading, error }) {
+  if (loading) {
     return (
-      <div className="flex min-h-72 items-center justify-center text-sm font-semibold text-slate-500">
-        Loading your vehicles...
+      <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-500">
+        <LoaderCircle size={20} className="animate-spin text-[#0261F3]" />
+        Loading vehicles...
       </div>
     );
-
-  if (loadError)
+  }
+  if (error) {
+    return <AlertBanner message={error} />;
+  }
+  if (!state.vehicles.length) {
     return (
-      <div className="flex min-h-72 flex-col items-center justify-center text-center">
-        <AlertBanner message={loadError} />
-        <p className="text-sm text-slate-500">
-          We could not load your vehicles for this request.
-        </p>
+      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-5 py-12 text-center">
+        <CarFront size={28} className="mx-auto text-slate-300" />
+        <p className="mt-3 text-sm font-bold text-slate-600">No vehicles found</p>
+        <p className="mt-1 text-xs text-slate-400">Please add a vehicle first.</p>
       </div>
     );
-
-  if (!state.vehicles.length)
-    return (
-      <div className="flex min-h-72 flex-col items-center justify-center text-center">
-        <CarFront size={42} className="text-slate-300" />
-        <h3 className="mt-4 text-lg font-bold text-slate-900">
-          No vehicles available
-        </h3>
-        <p className="mt-1 text-sm text-slate-500">
-          Add a vehicle before creating a service request.
-        </p>
-        <Link
-          to="/my-vehicles"
-          className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#0261F3] px-4 py-3 text-sm font-bold text-white"
-        >
-          <Plus size={16} />
-          Add a vehicle
-        </Link>
-      </div>
-    );
+  }
   return (
-    <div className="space-y-4">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-600">
-            Your garage
-          </p>
-          <h3 className="mt-1 text-lg font-bold text-slate-950">
-            Pick the vehicle for this visit
-          </h3>
-        </div>
-        <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
-          {state.vehicles.length}{" "}
-          {state.vehicles.length === 1 ? "vehicle" : "vehicles"}
-        </span>
-      </div>
-
-      <div className="-mx-1 flex gap-4 overflow-x-auto px-1 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {state.vehicles.map((vehicle) => {
-          const selected = state.vehicleId === vehicle.id;
-          const electric = vehicle.vehicleType === "EV";
-          const vehicleType = electric
-            ? "Electric vehicle"
-            : "Personal vehicle";
-          return (
-            <button
-              key={vehicle.id}
-              type="button"
-              aria-pressed={selected}
-              onClick={() =>
-                dispatch({
-                  type: "UPDATE",
-                  field: "vehicleId",
-                  value: vehicle.id,
-                })
-              }
-              className={`group relative min-h-[238px] w-[min(100%,22rem)] shrink-0 overflow-hidden rounded-[1.35rem] border text-left shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 ${selected ? "border-blue-500 bg-slate-950 shadow-lg shadow-blue-500/20 ring-2 ring-blue-500 ring-offset-2" : "border-slate-800 bg-slate-950 hover:border-blue-400"}`}
-            >
-              <div
-                className={`absolute -right-12 -top-14 h-40 w-40 rounded-full blur-2xl ${electric ? "bg-violet-500/25" : "bg-blue-500/25"}`}
-              />
-              <div className="absolute bottom-0 left-0 h-24 w-24 rounded-full bg-cyan-400/10 blur-2xl" />
-              <div className="relative flex h-full flex-col p-5 text-white">
-                <div className="flex items-start justify-between">
-                  <span
-                    className={`flex h-12 w-12 items-center justify-center rounded-2xl ${electric ? "bg-violet-400/20 text-violet-200" : "bg-blue-400/20 text-blue-200"}`}
-                  >
-                    <CarFront size={25} />
-                  </span>
-                  <span
-                    className={`flex h-8 w-8 items-center justify-center rounded-full transition ${selected ? "bg-blue-500 text-white" : "bg-white/10 text-transparent group-hover:text-white/60"}`}
-                  >
-                    <Check size={16} />
-                  </span>
-                </div>
-
-                <div className="mt-auto">
-                  <p className="truncate text-xl font-bold tracking-tight">
-                    {vehicle.nickname || "My vehicle"}
-                  </p>
-                  <p className="mt-1 truncate text-sm text-slate-300">
-                    {vehicle.year} {vehicle.make} {vehicle.model}
-                  </p>
-                  <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/10 pt-3 text-xs">
-                    <span className="truncate font-semibold text-slate-300">
-                      {vehicle.licensePlate || "Plate not added"}
-                    </span>
-                    <span className="shrink-0 rounded-full bg-white/10 px-2.5 py-1 font-semibold text-slate-200">
-                      {vehicleType}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      <p className="flex items-center gap-2 text-xs font-semibold text-slate-400">
-        <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-        Select a vehicle to continue with its saved details.
-      </p>
+    <div className="grid gap-3 sm:grid-cols-2">
+      {state.vehicles.map((v) => (
+        <button
+          key={v.id}
+          type="button"
+          onClick={() => dispatch({ type: "UPDATE", field: "vehicleId", value: v.id })}
+          className={`group rounded-2xl border p-4 text-left transition ${
+            state.vehicleId === v.id
+              ? "border-[#0261F3] bg-blue-50 ring-4 ring-blue-500/10"
+              : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${
+              state.vehicleId === v.id ? "bg-[#0261F3] text-white" : "bg-slate-100 text-slate-500"
+            }`}>
+              <CarFront size={20} />
+            </span>
+            <div>
+              <p className="text-sm font-bold text-slate-900">{v.nickname}</p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                {v.year} {v.make} {v.model} · {v.licensePlate}
+              </p>
+            </div>
+          </div>
+        </button>
+      ))}
     </div>
   );
 }
 
+/* ── Step 1: Problem ── */
 function ProblemStep({ state, dispatch }) {
   return (
     <div>
       <textarea
         value={state.problem}
-        onChange={(event) =>
-          dispatch({
-            type: "UPDATE",
-            field: "problem",
-            value: event.target.value,
-          })
-        }
+        onChange={(e) => dispatch({ type: "UPDATE", field: "problem", value: e.target.value })}
         placeholder="e.g. There is a grinding noise when I brake, especially at lower speeds."
         rows={8}
         className="w-full resize-y rounded-2xl border border-slate-200 bg-slate-50/60 p-4 text-sm leading-7 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
       />
       <div className="mt-2 flex justify-between text-xs font-semibold text-slate-400">
-        <span>
-          Symptoms only, please. Our technicians will handle the diagnosis.
-        </span>
+        <span>Symptoms only, please. Our technicians will handle the diagnosis.</span>
         <span>{state.problem.length} characters</span>
       </div>
     </div>
   );
 }
 
-function MediaStep({ state, dispatch, mediaSequence, setMediaSequence }) {
-  const addMedia = (failed) => {
-    dispatch({
-      type: "ADD_MEDIA",
-      file: createMockMedia(mediaSequence, failed),
-    });
-    setMediaSequence((value) => value + 1);
-  };
+/* ── Step 2: Photos (REAL file picker) ── */
+function PhotoStep({ state, dispatch, photoError, setPhotoError }) {
+  const inputRef = useRef(null);
+
+  const handleFiles = useCallback(
+    (files) => {
+      setPhotoError("");
+      const remaining = MAX_PHOTOS - state.media.length;
+      if (remaining <= 0) {
+        setPhotoError(`Maximum ${MAX_PHOTOS} photos allowed.`);
+        return;
+      }
+
+      const toAdd = [];
+      for (const file of Array.from(files).slice(0, remaining)) {
+        const err = validatePhoto(file);
+        if (err) {
+          setPhotoError(err);
+          continue;
+        }
+        toAdd.push({
+          id: `photo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          file,
+          filename: file.name,
+          sizeMb: Number((file.size / (1024 * 1024)).toFixed(1)),
+          previewUrl: URL.createObjectURL(file),
+          status: "Ready",
+        });
+      }
+      if (toAdd.length) dispatch({ type: "ADD_PHOTOS", photos: toAdd });
+    },
+    [state.media.length, dispatch, setPhotoError],
+  );
+
+  const handleDrop = useCallback(
+    (e) => {
+      e.preventDefault();
+      handleFiles(e.dataTransfer.files);
+    },
+    [handleFiles],
+  );
+
   return (
     <div>
-      <div className="flex flex-wrap gap-3">
-        <button
-          type="button"
-          onClick={() => addMedia(false)}
-          className="inline-flex items-center gap-2 rounded-xl bg-[#0261F3] px-4 py-3 text-sm font-bold text-white"
-        >
-          <Upload size={16} />
-          Simulate Upload
-        </button>
-        <button
-          type="button"
-          onClick={() => addMedia(true)}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
-        >
-          <AlertCircle size={16} />
-          Simulate Failure
-        </button>
+      {photoError && <AlertBanner message={photoError} />}
+
+      {/* Dropzone */}
+      <div
+        onDrop={handleDrop}
+        onDragOver={(e) => e.preventDefault()}
+        onClick={() => inputRef.current?.click()}
+        className="cursor-pointer rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/60 px-5 py-10 text-center transition hover:border-blue-400 hover:bg-blue-50/30"
+      >
+        <ImagePlus size={32} className="mx-auto text-slate-300" />
+        <p className="mt-3 text-sm font-bold text-slate-600">
+          Click to browse or drag & drop photos
+        </p>
+        <p className="mt-1 text-xs text-slate-400">
+          JPEG, PNG, or WebP · Max 10MB each · Up to {MAX_PHOTOS} photos
+        </p>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            handleFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
       </div>
-      <div className="mt-5 space-y-3">
-        {state.media.length ? (
-          state.media.map((file) => (
+
+      {/* Photo count indicator */}
+      <p className="mt-2 text-right text-xs font-semibold text-slate-400">
+        {state.media.length} / {MAX_PHOTOS} photos
+      </p>
+
+      {/* Photo previews */}
+      {state.media.length > 0 && (
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
+          {state.media.map((photo) => (
             <div
-              key={file.id}
-              className="flex items-center gap-3 rounded-2xl border border-slate-200 p-4"
+              key={photo.id}
+              className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
             >
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
-                {file.type === "image" ? (
-                  <FileImage size={21} />
-                ) : (
-                  <FileVideo size={21} />
-                )}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold text-slate-800">
-                  {file.filename}
+              <img
+                src={photo.previewUrl}
+                alt={photo.filename}
+                className="aspect-square w-full object-cover"
+              />
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-900/70 to-transparent px-2 pb-2 pt-6">
+                <p className="truncate text-xs font-semibold text-white">
+                  {photo.filename}
                 </p>
-                <p className="mt-1 text-xs text-slate-500">{file.size} MB</p>
+                <p className="text-[10px] text-slate-300">{photo.sizeMb} MB</p>
               </div>
-              <span
-                className={`rounded-full px-2.5 py-1 text-xs font-bold ${file.status === "Uploaded" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}
-              >
-                {file.status}
-              </span>
               <button
                 type="button"
-                onClick={() => dispatch({ type: "REMOVE_MEDIA", id: file.id })}
-                className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                aria-label={`Remove ${file.filename}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  dispatch({ type: "REMOVE_PHOTO", id: photo.id });
+                }}
+                className="absolute right-1.5 top-1.5 rounded-full bg-slate-900/60 p-1 text-white opacity-0 transition group-hover:opacity-100 hover:bg-rose-600"
               >
-                <X size={17} />
+                <X size={14} />
               </button>
             </div>
-          ))
-        ) : (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-5 py-12 text-center">
-            <Upload size={28} className="mx-auto text-slate-300" />
-            <p className="mt-3 text-sm font-bold text-slate-600">
-              No media added
-            </p>
-            <p className="mt-1 text-xs text-slate-400">
-              Photos and videos are optional.
-            </p>
-          </div>
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function DateStep({ state, dispatch, minDate }) {
+/* ── Step 3: Date (from schedule config window) ── */
+function DateStep({ state, dispatch }) {
+  const win = state.scheduleWindow;
+  if (!win || !win.startDate) {
+    return (
+      <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50 px-5 py-12 text-center">
+        <CalendarDays size={28} className="mx-auto text-amber-400" />
+        <p className="mt-3 text-sm font-bold text-amber-800">
+          No scheduling window is currently open
+        </p>
+        <p className="mt-1 text-xs text-amber-600">
+          Please check back later or contact the service center.
+        </p>
+      </div>
+    );
+  }
+
+  // Determine today or window start, whichever is later
+  const today = new Date().toISOString().split("T")[0];
+  const minDate = win.startDate > today ? win.startDate : today;
+
   return (
     <div className="max-w-md">
       <label className="block text-xs font-bold uppercase tracking-[0.13em] text-slate-500">
         Preferred service date
       </label>
+      <p className="mt-1 text-xs text-slate-400">
+        Available: {win.startDate} to {win.endDate} ·{" "}
+        {win.operatingDays.map((d) => d.slice(0, 3)).join(", ")}
+      </p>
       <div className="relative mt-3">
         <CalendarDays
           className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-blue-600"
@@ -546,29 +569,46 @@ function DateStep({ state, dispatch, minDate }) {
         <input
           type="date"
           min={minDate}
+          max={win.endDate}
           value={state.date}
-          onChange={(event) =>
-            dispatch({
-              type: "UPDATE",
-              field: "date",
-              value: event.target.value,
-            })
+          onChange={(e) =>
+            dispatch({ type: "UPDATE", field: "date", value: e.target.value })
           }
           className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-4 pl-12 pr-4 text-base font-semibold text-slate-800 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
         />
       </div>
       <p className="mt-3 text-sm text-slate-500">
-        Choose a day that works best. Your service center will confirm the
-        appointment.
+        Choose a day within the service center's current scheduling window.
       </p>
     </div>
   );
 }
 
+/* ── Step 4: Time Slot (from backend /api/schedule/slots) ── */
 function TimeStep({ state, dispatch }) {
-  const unavailable = state.unavailableSlots.map((item) =>
-    item.split("/").pop(),
-  );
+  if (state.slotsLoading) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-500">
+        <LoaderCircle size={20} className="animate-spin text-[#0261F3]" />
+        Loading available slots...
+      </div>
+    );
+  }
+
+  if (!state.availableSlots.length) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-5 py-12 text-center">
+        <Clock3 size={28} className="mx-auto text-slate-300" />
+        <p className="mt-3 text-sm font-bold text-slate-600">
+          No slots available for this date
+        </p>
+        <p className="mt-1 text-xs text-slate-400">
+          Try selecting a different date.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="mb-5 flex items-center justify-between">
@@ -578,36 +618,54 @@ function TimeStep({ state, dispatch }) {
         <Clock3 className="text-blue-600" size={20} />
       </div>
       {state.slot && (
-        <div className="mb-5 flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-700">
-          <Clock3 size={18} />
-          Slot held for {Math.floor(state.secondsLeft / 60)}:
-          {String(state.secondsLeft % 60).padStart(2, "0")}
+        <div className="mb-5 flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3">
+          <Clock3 size={18} className="text-blue-600" />
+          <div>
+            <p className="text-sm font-bold text-blue-900">
+              Selected: {state.slot}
+            </p>
+            {state.secondsLeft > 0 && (
+              <p className="mt-0.5 text-xs font-semibold text-blue-600">
+                Hold expires in {Math.floor(state.secondsLeft / 60)}:{String(state.secondsLeft % 60).padStart(2, "0")}
+              </p>
+            )}
+          </div>
         </div>
       )}
-      <div className="grid grid-cols-2 gap-3">
-        {TIME_SLOTS.map((slot) => {
-          const disabled = slot.full || unavailable.includes(slot.time);
-          const selected = state.slot === slot.time;
+      <div className="grid gap-2 sm:grid-cols-3">
+        {state.availableSlots.map((slot) => {
+          if (slot.isBreak) {
+            return (
+              <div
+                key={slot.label}
+                className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-center text-xs font-semibold text-slate-400"
+              >
+                Break · {slot.label}
+              </div>
+            );
+          }
+          const isSelected = state.slot === slot.label;
           return (
             <button
-              key={slot.time}
+              key={slot.label}
               type="button"
-              disabled={disabled}
+              disabled={!slot.isSelectable}
               onClick={() =>
                 dispatch({
                   type: "SELECT_SLOT",
-                  time: slot.time,
+                  label: slot.label,
                   now: Date.now(),
                 })
               }
-              className={`flex items-center justify-between rounded-2xl border-2 px-4 py-4 text-left transition ${disabled ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300" : selected ? "border-[#0261F3] bg-blue-50 text-[#0261F3]" : "border-slate-200 hover:border-blue-300 hover:bg-blue-50/40"}`}
+              className={`rounded-xl border px-4 py-3 text-sm font-bold transition ${
+                isSelected
+                  ? "border-[#0261F3] bg-blue-50 text-[#0261F3] ring-4 ring-blue-500/10"
+                  : slot.isSelectable
+                    ? "border-slate-200 text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-[#0261F3]"
+                    : "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300"
+              }`}
             >
-              <span className="font-bold">{slot.time}</span>
-              <span
-                className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${disabled ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-700"}`}
-              >
-                {disabled ? "Full" : `${slot.spaces} spaces`}
-              </span>
+              {slot.label}
             </button>
           );
         })}
@@ -616,90 +674,97 @@ function TimeStep({ state, dispatch }) {
   );
 }
 
+/* ── Step 5: Handover ── */
 function HandoverStep({ state, dispatch }) {
+  const update = (field, value) => dispatch({ type: "UPDATE", field, value });
   return (
-    <div className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-2">
-        {[
-          {
-            label: "Pickup",
-            subtitle: "We pick up your vehicle",
-            icon: MapPin,
-          },
-          { label: "Drop-off", subtitle: "You bring it in", icon: CarFront },
-        ].map(({ label, subtitle, icon: Icon }) => (
-          <button
-            key={label}
-            type="button"
-            onClick={() =>
-              dispatch({ type: "UPDATE", field: "handover", value: label })
-            }
-            className={`flex items-center gap-4 rounded-2xl border-2 p-5 text-left transition ${state.handover === label ? "border-[#0261F3] bg-blue-50" : "border-slate-200 hover:border-blue-200"}`}
-          >
-            <span
-              className={`flex h-12 w-12 items-center justify-center rounded-2xl ${state.handover === label ? "bg-[#0261F3] text-white" : "bg-slate-100 text-slate-500"}`}
-            >
-              <Icon size={22} />
-            </span>
-            <span>
-              <b className="block text-base text-slate-900">{label}</b>
-              <small className="mt-1 block text-sm text-slate-500">
-                {subtitle}
-              </small>
-            </span>
-            {state.handover === label && (
-              <Check className="ml-auto text-blue-600" size={19} />
-            )}
-          </button>
-        ))}
-      </div>
-      {state.handover === "Pickup" && (
-        <label className="block max-w-xl">
-          <span className="text-xs font-bold uppercase tracking-[0.13em] text-slate-500">
-            Pickup Location
+    <div className="max-w-md space-y-4">
+      {["Drop-off", "Pickup"].map((option) => (
+        <button
+          key={option}
+          type="button"
+          onClick={() => update("handover", option)}
+          className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${
+            state.handover === option
+              ? "border-[#0261F3] bg-blue-50 ring-4 ring-blue-500/10"
+              : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+          }`}
+        >
+          <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${
+            state.handover === option ? "bg-[#0261F3] text-white" : "bg-slate-100 text-slate-500"
+          }`}>
+            {option === "Drop-off" ? <CarFront size={20} /> : <MapPin size={20} />}
           </span>
-          <div className="relative mt-2">
-            <MapPin
-              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-              size={18}
-            />
-            <input
-              value={state.pickupLocation}
-              onChange={(event) =>
-                dispatch({
-                  type: "UPDATE",
-                  field: "pickupLocation",
-                  value: event.target.value,
-                })
-              }
-              placeholder="Enter the pickup address"
-              className="w-full rounded-2xl border border-slate-200 py-3.5 pl-11 pr-4 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
-            />
+          <div>
+            <p className="text-sm font-bold text-slate-900">{option}</p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {option === "Drop-off"
+                ? "I'll bring the vehicle to the service center."
+                : "Please pick up my vehicle."}
+            </p>
           </div>
-        </label>
+        </button>
+      ))}
+      {state.handover === "Pickup" && (
+        <div className="mt-3">
+          <label className="block text-xs font-bold uppercase tracking-[0.13em] text-slate-500">
+            Pickup location
+          </label>
+          <input
+            type="text"
+            value={state.pickupLocation}
+            onChange={(e) => update("pickupLocation", e.target.value)}
+            placeholder="Enter your full address"
+            className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-800 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+          />
+        </div>
       )}
     </div>
   );
 }
 
-function ServicesStep({ state, dispatch }) {
+/* ── Step 6: Extras (from DB additional_services) ── */
+function ExtrasStep({ state, dispatch }) {
+  if (!state.availableServicesList.length) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-5 py-12 text-center">
+        <Sparkles size={28} className="mx-auto text-slate-300" />
+        <p className="mt-3 text-sm font-bold text-slate-600">No additional services available</p>
+        <p className="mt-1 text-xs text-slate-400">You can proceed without selecting extras.</p>
+      </div>
+    );
+  }
   return (
-    <div className="space-y-3">
-      {ADDITIONAL_SERVICES.map((service) => {
-        const checked = state.additionalServices.includes(service);
+    <div className="space-y-2">
+      {state.availableServicesList.map((svc) => {
+        const selected = state.selectedServiceIds.includes(svc.id);
         return (
           <button
-            key={service}
+            key={svc.id}
             type="button"
-            onClick={() => dispatch({ type: "TOGGLE_SERVICE", service })}
-            className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${checked ? "border-blue-200 bg-blue-50" : "border-slate-200 hover:border-blue-200"}`}
+            onClick={() => dispatch({ type: "TOGGLE_SERVICE_BY_ID", serviceId: svc.id })}
+            className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${
+              selected
+                ? "border-[#0261F3] bg-blue-50"
+                : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+            }`}
           >
-            <span
-              className={`flex h-6 w-6 items-center justify-center rounded-lg border-2 ${checked ? "border-[#0261F3] bg-[#0261F3] text-white" : "border-slate-300 text-transparent"}`}
-            >
-              <Check size={14} />
+            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition ${
+              selected
+                ? "border-[#0261F3] bg-[#0261F3] text-white"
+                : "border-slate-200 bg-white"
+            }`}>
+              {selected && <Check size={14} />}
             </span>
-            <span className="text-sm font-bold text-slate-800">{service}</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-slate-800">{svc.name}</p>
+              {svc.description && (
+                <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{svc.description}</p>
+              )}
+            </div>
+            <span className="shrink-0 text-sm font-bold tabular-nums text-slate-700">
+              {Number(svc.price).toLocaleString()} MMK
+            </span>
           </button>
         );
       })}
@@ -710,7 +775,12 @@ function ServicesStep({ state, dispatch }) {
   );
 }
 
+/* ── Step 7: Review ── */
 function ReviewStep({ state, selectedVehicle }) {
+  const selectedServiceNames = state.availableServicesList
+    .filter((s) => state.selectedServiceIds.includes(s.id))
+    .map((s) => s.name);
+
   const rows = [
     {
       label: "Vehicle",
@@ -720,9 +790,9 @@ function ReviewStep({ state, selectedVehicle }) {
     },
     { label: "Problem", value: state.problem },
     {
-      label: "Media",
-      value: state.media.filter((file) => file.status === "Uploaded").length
-        ? `${state.media.filter((file) => file.status === "Uploaded").length} uploaded file(s)`
+      label: "Photos",
+      value: state.media.length
+        ? `${state.media.length} photo(s) attached`
         : "None",
     },
     { label: "Preferred Date", value: state.date },
@@ -733,8 +803,8 @@ function ReviewStep({ state, selectedVehicle }) {
       : []),
     {
       label: "Additional Services",
-      value: state.additionalServices.length
-        ? state.additionalServices.join(", ")
+      value: selectedServiceNames.length
+        ? selectedServiceNames.join(", ")
         : "None",
     },
   ];
@@ -757,6 +827,7 @@ function ReviewStep({ state, selectedVehicle }) {
   );
 }
 
+/* ── Step 8: Submit ── */
 function SubmitStep() {
   return (
     <div className="flex min-h-72 flex-col items-center justify-center text-center">
@@ -774,6 +845,7 @@ function SubmitStep() {
   );
 }
 
+/* ── Request Rail (sidebar) ── */
 function RequestRail({ state, selectedVehicle }) {
   return (
     <aside className="hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:block">
@@ -825,6 +897,7 @@ function RequestRail({ state, selectedVehicle }) {
   );
 }
 
+/* ── Submitted View ── */
 function SubmittedView({ request, onStartNew }) {
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-xl items-center justify-center">
@@ -853,6 +926,12 @@ function SubmittedView({ request, onStartNew }) {
               {request.preferredDate} at {request.timeSlot}
             </span>
           </div>
+          {request.photoCount > 0 && (
+            <div className="mt-3 flex justify-between gap-4 text-sm">
+              <span className="font-semibold text-slate-500">Photos</span>
+              <span className="font-bold text-slate-800">{request.photoCount} attached</span>
+            </div>
+          )}
         </div>
         <button
           type="button"
