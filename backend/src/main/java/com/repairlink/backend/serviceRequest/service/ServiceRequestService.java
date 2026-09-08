@@ -3,6 +3,10 @@ package com.repairlink.backend.serviceRequest.service;
 import com.repairlink.backend.additionalWork.entity.AdditionalService;
 import com.repairlink.backend.additionalWork.entity.AdditionalServiceStatus;
 import com.repairlink.backend.additionalWork.repository.AdditionalServiceRepository;
+import com.repairlink.backend.schedule.entity.SlotHold;
+import com.repairlink.backend.schedule.entity.SlotHoldStatus;
+import com.repairlink.backend.schedule.repository.SlotHoldRepository;
+import com.repairlink.backend.schedule.service.ScheduleService;
 import com.repairlink.backend.security.auth.entity.UserAccount;
 import com.repairlink.backend.security.auth.repository.UserAccountRepository;
 import com.repairlink.backend.serviceRequest.dto.CustomerServiceRequestDetailResponse;
@@ -15,7 +19,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Service
@@ -26,19 +33,25 @@ public class ServiceRequestService {
     private final VehicleRepository vehicleRepository;
     private final AdditionalServiceRepository additionalServiceRepository;
     private final FileStorageService fileStorageService;
+    private final SlotHoldRepository slotHoldRepository;
+    private final ScheduleService scheduleService;
 
     public ServiceRequestService(
             ServiceRequestRepository requestRepository,
             UserAccountRepository userRepository,
             VehicleRepository vehicleRepository,
             AdditionalServiceRepository additionalServiceRepository,
-            FileStorageService fileStorageService
+            FileStorageService fileStorageService,
+            SlotHoldRepository slotHoldRepository,
+            ScheduleService scheduleService
     ) {
         this.requestRepository = requestRepository;
         this.userRepository = userRepository;
         this.vehicleRepository = vehicleRepository;
         this.additionalServiceRepository = additionalServiceRepository;
         this.fileStorageService = fileStorageService;
+        this.slotHoldRepository = slotHoldRepository;
+        this.scheduleService = scheduleService;
     }
 
     @Transactional
@@ -62,6 +75,17 @@ public class ServiceRequestService {
                 .orElseThrow(() -> new IllegalArgumentException("Vehicle not found."));
         if (!vehicle.getOwner().getUserId().equals(customerId)) {
             throw new IllegalArgumentException("Vehicle does not belong to this customer.");
+        }
+
+        // Validate vehicle does not already have an active request
+        boolean hasActiveRequest = requestRepository.existsByVehicleVehicleIdAndStatusNotIn(
+                vehicleId,
+                List.of(ServiceRequestStatus.CANCELLED, ServiceRequestStatus.REJECTED)
+        );
+        if (hasActiveRequest) {
+            throw new IllegalArgumentException(
+                    "This vehicle already has an active service request. You cannot submit another request for this vehicle unless the existing request is cancelled or rejected."
+            );
         }
 
         // Validate problem
@@ -95,6 +119,22 @@ public class ServiceRequestService {
             }
         }
 
+        // Validate preferred date and slot
+        scheduleService.validateBookingDate(preferredDate);
+        LocalDate today = LocalDate.now();
+        if (preferredDate.equals(today)) {
+            LocalTime slotStart = parseSlotStartTime(timeSlot);
+            if (slotStart != null && !slotStart.isAfter(LocalTime.now())) {
+                throw new IllegalArgumentException("Preferred time slot cannot be in the past.");
+            }
+        }
+
+        Instant now = Instant.now();
+        Optional<SlotHold> activeHold = slotHoldRepository.findActiveCustomerHold(customerId, preferredDate, timeSlot, now);
+        if (activeHold.isEmpty()) {
+            scheduleService.validateSlotCapacity(preferredDate, timeSlot, customerId);
+        }
+
         // Build entity
         ServiceRequest request = new ServiceRequest();
         request.setCustomer(customer);
@@ -124,6 +164,14 @@ public class ServiceRequestService {
         }
 
         ServiceRequest saved = requestRepository.save(request);
+
+        if (activeHold.isPresent()) {
+            SlotHold hold = activeHold.get();
+            hold.setStatus(SlotHoldStatus.CONVERTED);
+            hold.setServiceRequest(saved);
+            slotHoldRepository.save(hold);
+        }
+        slotHoldRepository.releaseActiveHoldsByCustomerId(customerId, now);
 
         // Build response
         String vehicleName = vehicle.getYear() + " " + vehicle.getMake() + " " + vehicle.getModel();
@@ -202,5 +250,60 @@ public class ServiceRequestService {
                     req.getUpdatedAt()
             );
         }).toList();
+    }
+
+    @Transactional
+    public void deleteServiceRequest(UUID customerId, UUID serviceRequestId) {
+        ServiceRequest request = requestRepository.findById(serviceRequestId)
+                .orElseThrow(() -> new IllegalArgumentException("Service request not found: " + serviceRequestId));
+
+        if (!request.getCustomer().getUserId().equals(customerId)) {
+            throw new IllegalArgumentException("You are not authorized to delete this service request.");
+        }
+
+        // Delete photo files from disk
+        if (request.getPhotos() != null) {
+            for (ServiceRequestPhoto photo : request.getPhotos()) {
+                fileStorageService.delete(photo.getStoredFileName());
+            }
+        }
+
+        requestRepository.delete(request);
+    }
+
+    @Transactional
+    public void cancelServiceRequest(UUID customerId, UUID serviceRequestId) {
+        ServiceRequest request = requestRepository.findById(serviceRequestId)
+                .orElseThrow(() -> new IllegalArgumentException("Service request not found: " + serviceRequestId));
+
+        if (!request.getCustomer().getUserId().equals(customerId)) {
+            throw new IllegalArgumentException("You are not authorized to cancel this service request.");
+        }
+
+        if (request.getStatus() == ServiceRequestStatus.COMPLETED) {
+            throw new IllegalArgumentException("Completed service requests cannot be cancelled.");
+        }
+
+        request.setStatus(ServiceRequestStatus.CANCELLED);
+        requestRepository.save(request);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UUID> getActiveVehicleIdsForCustomer(UUID customerId) {
+        return requestRepository.findByCustomerUserIdOrderByCreatedAtDesc(customerId).stream()
+                .filter(r -> r.getStatus() != ServiceRequestStatus.CANCELLED && r.getStatus() != ServiceRequestStatus.REJECTED)
+                .map(r -> r.getVehicle().getVehicleId())
+                .distinct()
+                .toList();
+    }
+
+    private LocalTime parseSlotStartTime(String timeSlot) {
+        if (timeSlot == null || timeSlot.isBlank()) return null;
+        try {
+            String startStr = timeSlot.split("–|-")[0].trim();
+            return LocalTime.parse(startStr, DateTimeFormatter.ofPattern("HH:mm"));
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

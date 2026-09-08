@@ -31,6 +31,12 @@ public class CustomerServiceRequestController {
         return ResponseEntity.ok(serviceRequestService.getCustomerServiceRequests(customerId));
     }
 
+    @GetMapping("/active-vehicle-ids")
+    public ResponseEntity<List<UUID>> getActiveVehicleIds(Authentication authentication) {
+        UUID customerId = UUID.fromString(authentication.getName());
+        return ResponseEntity.ok(serviceRequestService.getActiveVehicleIdsForCustomer(customerId));
+    }
+
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ServiceRequestResponse> create(
             Authentication authentication,
@@ -51,5 +57,25 @@ public class CustomerServiceRequestController {
         );
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(
+            Authentication authentication,
+            @PathVariable UUID id
+    ) {
+        UUID customerId = UUID.fromString(authentication.getName());
+        serviceRequestService.deleteServiceRequest(customerId, id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/cancel")
+    public ResponseEntity<Void> cancel(
+            Authentication authentication,
+            @PathVariable UUID id
+    ) {
+        UUID customerId = UUID.fromString(authentication.getName());
+        serviceRequestService.cancelServiceRequest(customerId, id);
+        return ResponseEntity.noContent().build();
     }
 }

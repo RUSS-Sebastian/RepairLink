@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useReducer, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import {
   AlertCircle,
   ArrowLeft,
@@ -17,6 +17,7 @@ import {
   FileImage,
   ImagePlus,
   LoaderCircle,
+  Lock,
   MapPin,
   PackageCheck,
   Plus,
@@ -36,16 +37,29 @@ import {
   validatePhoto,
   validateStep,
   getSecondsLeft,
+  getLocalDateString,
 } from "../../features/serviceRequests/serviceRequestState";
 import {
   getCurrentScheduleWindow,
   getAvailableSlots,
   getAdditionalServices,
   submitServiceRequest,
+  getActiveVehicleIds,
+  holdSlot,
+  releaseSlotHold,
 } from "../../features/serviceRequests/serviceRequestApi";
 import { useVehicles } from "../../context/VehicleContext";
+import { ROUTES } from "../../constants/routes";
 
 function ServiceRequestPage() {
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const preselectedVehicleId =
+    location.state?.selectedVehicleId ||
+    location.state?.vehicleId ||
+    searchParams.get("vehicleId") ||
+    "";
+
   const {
     vehicles,
     isLoading: vehiclesLoading,
@@ -53,14 +67,56 @@ function ServiceRequestPage() {
   } = useVehicles();
   const [state, dispatch] = useReducer(
     serviceRequestReducer,
-    [],
-    createInitialState,
+    preselectedVehicleId,
+    (preselectedId) => createInitialState([], preselectedId),
   );
   const [photoError, setPhotoError] = useState("");
+  const [activeVehicleWarning, setActiveVehicleWarning] = useState("");
+  const autoAppliedRef = useRef(false);
 
   useEffect(() => {
-    dispatch({ type: "SET_VEHICLES", vehicles });
-  }, [vehicles]);
+    getActiveVehicleIds()
+      .then((ids) => {
+        const idStrings = (ids || []).map((x) => String(x).toLowerCase());
+        dispatch({ type: "SET_ACTIVE_VEHICLE_IDS", ids: idStrings });
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (
+      preselectedVehicleId &&
+      !autoAppliedRef.current &&
+      vehicles.length > 0 &&
+      state.activeVehicleIds !== undefined
+    ) {
+      const isBlocked = (state.activeVehicleIds || []).includes(
+        String(preselectedVehicleId).toLowerCase(),
+      );
+      const targetVehicle = vehicles.find((v) => v.id === preselectedVehicleId);
+
+      if (isBlocked && targetVehicle) {
+        autoAppliedRef.current = true;
+        setActiveVehicleWarning(
+          `"${targetVehicle.nickname}" already has an active service request awaiting workshop review. You cannot create another request for this vehicle until the current one is cancelled or resolved.`,
+        );
+        dispatch({ type: "SET_VEHICLES", vehicles });
+        dispatch({ type: "UPDATE", field: "vehicleId", value: "" });
+        dispatch({ type: "GO_BACK", step: 0 });
+      } else if (targetVehicle && !isBlocked) {
+        autoAppliedRef.current = true;
+        dispatch({
+          type: "SET_VEHICLES",
+          vehicles,
+          preselectedVehicleId,
+        });
+      } else {
+        dispatch({ type: "SET_VEHICLES", vehicles });
+      }
+    } else {
+      dispatch({ type: "SET_VEHICLES", vehicles });
+    }
+  }, [vehicles, preselectedVehicleId, state.activeVehicleIds]);
 
   useEffect(() => {
     if (!state.holdUntil) return undefined;
@@ -71,6 +127,13 @@ function ServiceRequestPage() {
     return () => window.clearInterval(timer);
   }, [state.holdUntil]);
 
+  // Release hold on page unmount
+  useEffect(() => {
+    return () => {
+      releaseSlotHold();
+    };
+  }, []);
+
   // Load schedule window once
   useEffect(() => {
     getCurrentScheduleWindow()
@@ -78,18 +141,81 @@ function ServiceRequestPage() {
       .catch(() => {});
   }, []);
 
-  // Load slots when date changes
-  useEffect(() => {
+  // Refresh slots callback
+  const refreshSlots = useCallback(() => {
     if (!state.date) return;
     dispatch({ type: "SET_SLOTS_LOADING", loading: true });
     getAvailableSlots(state.date)
-      .then((data) =>
-        dispatch({ type: "SET_AVAILABLE_SLOTS", slots: data.slots || [] }),
-      )
-      .catch(() =>
-        dispatch({ type: "SET_AVAILABLE_SLOTS", slots: [] }),
-      );
+      .then((data) => {
+        dispatch({ type: "SET_AVAILABLE_SLOTS", slots: data.slots || [] });
+        if (!data.isOpen && (data.blockedReason || data.message)) {
+          dispatch({
+            type: "SET_SLOTS_MESSAGE",
+            message: data.blockedReason || data.message,
+          });
+        } else {
+          dispatch({ type: "SET_SLOTS_MESSAGE", message: "" });
+        }
+      })
+      .catch(() => dispatch({ type: "SET_AVAILABLE_SLOTS", slots: [] }));
   }, [state.date]);
+
+  // Load / refresh slots when date changes or whenever entering Step 4 (Time slot)
+  useEffect(() => {
+    if (!state.date) return;
+    refreshSlots();
+  }, [state.date, state.step, refreshSlots]);
+
+  // When hold expires while on step 4 (Time slot), refresh available slots from backend
+  useEffect(() => {
+    if (state.holdExpired && state.step === 4) {
+      refreshSlots();
+    }
+  }, [state.holdExpired, state.step, refreshSlots]);
+
+  // Hold slot handler
+  const handleSelectSlot = async (slot) => {
+    if (!state.date || !slot?.label) return;
+    if (!slot.isSelectable && !slot.isHeldByCurrentUser) {
+      dispatch({
+        type: "HOLD_SLOT_ERROR",
+        message:
+          slot.holdStatusMessage ||
+          "This slot is currently unavailable. Please choose a different slot.",
+      });
+      refreshSlots();
+      return;
+    }
+
+    dispatch({ type: "HOLD_SLOT_START" });
+    try {
+      const res = await holdSlot(state.date, slot.label);
+      dispatch({
+        type: "HOLD_SLOT_SUCCESS",
+        label: slot.label,
+        expiresAt: res.expiresAt,
+        secondsLeft: res.secondsLeft,
+        now: Date.now(),
+      });
+      refreshSlots();
+    } catch (err) {
+      dispatch({
+        type: "HOLD_SLOT_ERROR",
+        message:
+          err.message ||
+          "Could not hold this slot. It may have just been reserved by another customer.",
+      });
+      refreshSlots();
+    }
+  };
+
+  // Date change handler (releases existing hold if date changed)
+  const handleDateChange = (newDate) => {
+    if (state.slot || state.holdUntil) {
+      releaseSlotHold();
+    }
+    dispatch({ type: "UPDATE", field: "date", value: newDate });
+  };
 
   // Load additional services when vehicle changes
   const selectedVehicle = state.vehicles.find((v) => v.id === state.vehicleId);
@@ -106,15 +232,38 @@ function ServiceRequestPage() {
 
   const step = STEPS[state.step];
 
-  const goNext = () => dispatch({ type: "NEXT", now: Date.now() });
+  const goNext = () => {
+    if (state.step > 4 && (state.holdExpired || !state.slot)) {
+      dispatch({ type: "EXPIRE_HOLD" });
+      dispatch({ type: "GO_BACK", step: 4 });
+      return;
+    }
+    dispatch({ type: "NEXT", now: Date.now() });
+  };
   const goBack = () => dispatch({ type: "BACK" });
 
   const submit = async () => {
+    // Check if slot hold expired before submitting
+    const isExpired =
+      state.holdExpired ||
+      !state.slot ||
+      (state.holdUntil && getSecondsLeft(state.holdUntil, Date.now()) === 0);
+
+    if (isExpired) {
+      dispatch({ type: "EXPIRE_HOLD" });
+      dispatch({ type: "GO_BACK", step: 4 });
+      return;
+    }
+
     // Validate all required steps
     for (const s of [0, 1, 3, 4, 5]) {
       const error = validateStep(state, s);
       if (error) {
-        dispatch({ type: "BACK" }); // handled by error display
+        if (s === 4) {
+          dispatch({ type: "GO_BACK", step: 4 });
+        } else {
+          dispatch({ type: "BACK" });
+        }
         return;
       }
     }
@@ -220,6 +369,11 @@ function ServiceRequestPage() {
               vehiclesError={vehiclesError}
               photoError={photoError}
               setPhotoError={setPhotoError}
+              activeVehicleWarning={activeVehicleWarning}
+              onClearWarning={() => setActiveVehicleWarning("")}
+              onDateChange={handleDateChange}
+              onSelectSlot={handleSelectSlot}
+              onRefreshSlots={refreshSlots}
             />
             <div className="mt-8 flex items-center justify-between gap-3 border-t border-slate-100 pt-5">
               <button
@@ -302,8 +456,15 @@ function StepIndicator({ currentStep, onSelect }) {
 
 function StepIcon({ step }) {
   const icons = [
-    CarFront, CircleHelp, Camera, CalendarDays, Clock3,
-    MapPin, Sparkles, CheckCircle2, PackageCheck,
+    CarFront,
+    CircleHelp,
+    Camera,
+    CalendarDays,
+    Clock3,
+    MapPin,
+    Sparkles,
+    CheckCircle2,
+    PackageCheck,
   ];
   const Icon = icons[step];
   return <Icon size={22} />;
@@ -318,18 +479,66 @@ function AlertBanner({ message }) {
   );
 }
 
-function StepContent({ state, dispatch, selectedVehicle, vehiclesLoading, vehiclesError, photoError, setPhotoError }) {
+function StepContent({
+  state,
+  dispatch,
+  selectedVehicle,
+  vehiclesLoading,
+  vehiclesError,
+  photoError,
+  setPhotoError,
+  activeVehicleWarning,
+  onClearWarning,
+  onDateChange,
+  onSelectSlot,
+  onRefreshSlots,
+}) {
   switch (state.step) {
     case 0:
-      return <VehicleStep state={state} dispatch={dispatch} loading={vehiclesLoading} error={vehiclesError} />;
+      return (
+        <VehicleStep
+          state={state}
+          dispatch={dispatch}
+          loading={vehiclesLoading}
+          error={vehiclesError}
+          activeVehicleWarning={activeVehicleWarning}
+          onClearWarning={onClearWarning}
+        />
+      );
     case 1:
-      return <ProblemStep state={state} dispatch={dispatch} />;
+      return (
+        <ProblemStep
+          state={state}
+          dispatch={dispatch}
+          selectedVehicle={selectedVehicle}
+        />
+      );
     case 2:
-      return <PhotoStep state={state} dispatch={dispatch} photoError={photoError} setPhotoError={setPhotoError} />;
+      return (
+        <PhotoStep
+          state={state}
+          dispatch={dispatch}
+          photoError={photoError}
+          setPhotoError={setPhotoError}
+        />
+      );
     case 3:
-      return <DateStep state={state} dispatch={dispatch} />;
+      return (
+        <DateStep
+          state={state}
+          dispatch={dispatch}
+          onDateChange={onDateChange}
+        />
+      );
     case 4:
-      return <TimeStep state={state} dispatch={dispatch} />;
+      return (
+        <TimeStep
+          state={state}
+          dispatch={dispatch}
+          onSelectSlot={onSelectSlot}
+          onRefreshSlots={onRefreshSlots}
+        />
+      );
     case 5:
       return <HandoverStep state={state} dispatch={dispatch} />;
     case 6:
@@ -344,7 +553,14 @@ function StepContent({ state, dispatch, selectedVehicle, vehiclesLoading, vehicl
 }
 
 /* ── Step 0: Vehicle ── */
-function VehicleStep({ state, dispatch, loading, error }) {
+function VehicleStep({
+  state,
+  dispatch,
+  loading,
+  error,
+  activeVehicleWarning,
+  onClearWarning,
+}) {
   if (loading) {
     return (
       <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-500">
@@ -360,56 +576,181 @@ function VehicleStep({ state, dispatch, loading, error }) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-5 py-12 text-center">
         <CarFront size={28} className="mx-auto text-slate-300" />
-        <p className="mt-3 text-sm font-bold text-slate-600">No vehicles found</p>
-        <p className="mt-1 text-xs text-slate-400">Please add a vehicle first.</p>
+        <p className="mt-3 text-sm font-bold text-slate-600">
+          No vehicles found
+        </p>
+        <p className="mt-1 text-xs text-slate-400">
+          Please add a vehicle first.
+        </p>
       </div>
     );
   }
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      {state.vehicles.map((v) => (
-        <button
-          key={v.id}
-          type="button"
-          onClick={() => dispatch({ type: "UPDATE", field: "vehicleId", value: v.id })}
-          className={`group rounded-2xl border p-4 text-left transition ${
-            state.vehicleId === v.id
-              ? "border-[#0261F3] bg-blue-50 ring-4 ring-blue-500/10"
-              : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${
-              state.vehicleId === v.id ? "bg-[#0261F3] text-white" : "bg-slate-100 text-slate-500"
-            }`}>
-              <CarFront size={20} />
-            </span>
-            <div>
-              <p className="text-sm font-bold text-slate-900">{v.nickname}</p>
-              <p className="mt-0.5 text-xs text-slate-500">
-                {v.year} {v.make} {v.model} · {v.licensePlate}
-              </p>
-            </div>
+    <div className="space-y-4">
+      {activeVehicleWarning && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs font-semibold text-amber-800">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle size={18} className="shrink-0 text-amber-600" />
+            <span>{activeVehicleWarning}</span>
           </div>
-        </button>
-      ))}
+          <div className="flex items-center gap-2">
+            <Link
+              to={ROUTES.ACTIVE_SERVICE}
+              className="shrink-0 rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-amber-700"
+            >
+              View Active Service
+            </Link>
+            <button
+              type="button"
+              onClick={onClearWarning}
+              className="rounded-lg p-1 text-amber-600 hover:bg-amber-100"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {state.vehicles.map((v) => {
+          const isBlocked = (state.activeVehicleIds || []).includes(
+            String(v.id).toLowerCase(),
+          );
+
+          if (isBlocked) {
+            return (
+              <div
+                key={v.id}
+                className="group relative flex flex-col justify-between rounded-2xl border border-amber-200 bg-amber-50/40 p-4 text-left shadow-sm"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+                        <CarFront size={20} />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-slate-800">
+                          {v.nickname}
+                        </p>
+                        <p className="mt-0.5 truncate text-xs text-slate-500">
+                          {v.year} {v.make} {v.model} · {v.licensePlate}
+                        </p>
+                      </div>
+                    </div>
+
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                      <Clock3 size={11} />
+                      Active Request
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between border-t border-amber-200/60 pt-2.5 text-xs">
+                  <span className="text-[11px] text-amber-700">
+                    Already has a pending service request
+                  </span>
+                  <Link
+                    to={ROUTES.ACTIVE_SERVICE}
+                    className="font-bold text-[#0261F3] hover:underline"
+                  >
+                    View Request
+                  </Link>
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <button
+              key={v.id}
+              type="button"
+              onClick={() => {
+                if (activeVehicleWarning) onClearWarning();
+                dispatch({ type: "UPDATE", field: "vehicleId", value: v.id });
+              }}
+              className={`group rounded-2xl border p-4 text-left transition ${
+                state.vehicleId === v.id
+                  ? "border-[#0261F3] bg-blue-50 ring-4 ring-blue-500/10"
+                  : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`flex h-11 w-11 items-center justify-center rounded-xl ${
+                      state.vehicleId === v.id
+                        ? "bg-[#0261F3] text-white"
+                        : "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    <CarFront size={20} />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">
+                      {v.nickname}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {v.year} {v.make} {v.model} · {v.licensePlate}
+                    </p>
+                  </div>
+                </div>
+                {state.vehicleId === v.id && (
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#0261F3] text-white shadow-sm">
+                    <Check size={14} />
+                  </span>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
 /* ── Step 1: Problem ── */
-function ProblemStep({ state, dispatch }) {
+function ProblemStep({ state, dispatch, selectedVehicle }) {
   return (
     <div>
+      {selectedVehicle && (
+        <div className="mb-4 flex items-center justify-between rounded-2xl border border-blue-100 bg-blue-50/70 p-3.5 text-xs text-slate-700">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#0261F3] text-white shadow-sm">
+              <CarFront size={18} />
+            </span>
+            <div>
+              <p className="font-bold text-slate-900">
+                Selected Vehicle: {selectedVehicle.nickname}
+              </p>
+              <p className="text-[11px] text-slate-500">
+                {selectedVehicle.year} {selectedVehicle.make}{" "}
+                {selectedVehicle.model} · {selectedVehicle.licensePlate}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => dispatch({ type: "GO_BACK", step: 0 })}
+            className="inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-white px-3 py-1.5 text-xs font-bold text-[#0261F3] shadow-sm transition hover:bg-blue-50"
+          >
+            Change Vehicle
+          </button>
+        </div>
+      )}
       <textarea
         value={state.problem}
-        onChange={(e) => dispatch({ type: "UPDATE", field: "problem", value: e.target.value })}
+        onChange={(e) =>
+          dispatch({ type: "UPDATE", field: "problem", value: e.target.value })
+        }
         placeholder="e.g. There is a grinding noise when I brake, especially at lower speeds."
         rows={8}
         className="w-full resize-y rounded-2xl border border-slate-200 bg-slate-50/60 p-4 text-sm leading-7 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
       />
       <div className="mt-2 flex justify-between text-xs font-semibold text-slate-400">
-        <span>Symptoms only, please. Our technicians will handle the diagnosis.</span>
+        <span>
+          Symptoms only, please. Our technicians will handle the diagnosis.
+        </span>
         <span>{state.problem.length} characters</span>
       </div>
     </div>
@@ -532,7 +873,7 @@ function PhotoStep({ state, dispatch, photoError, setPhotoError }) {
 }
 
 /* ── Step 3: Date (from schedule config window) ── */
-function DateStep({ state, dispatch }) {
+function DateStep({ state, dispatch, onDateChange }) {
   const win = state.scheduleWindow;
   if (!win || !win.startDate) {
     return (
@@ -548,9 +889,23 @@ function DateStep({ state, dispatch }) {
     );
   }
 
-  // Determine today or window start, whichever is later
-  const today = new Date().toISOString().split("T")[0];
-  const minDate = win.startDate > today ? win.startDate : today;
+  const minDate = win.startDate;
+  const isExhausted = minDate > win.endDate;
+
+  if (isExhausted) {
+    return (
+      <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50 px-5 py-12 text-center">
+        <CalendarDays size={28} className="mx-auto text-amber-400" />
+        <p className="mt-3 text-sm font-bold text-amber-800">
+          No available booking dates remaining in this window
+        </p>
+        <p className="mt-1 text-xs text-amber-600">
+          Appointments require at least 2 available operating days advance
+          notice. The current window ends on {win.endDate}.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-md">
@@ -558,7 +913,7 @@ function DateStep({ state, dispatch }) {
         Preferred service date
       </label>
       <p className="mt-1 text-xs text-slate-400">
-        Available: {win.startDate} to {win.endDate} ·{" "}
+        Available: {minDate} to {win.endDate} ·{" "}
         {win.operatingDays.map((d) => d.slice(0, 3)).join(", ")}
       </p>
       <div className="relative mt-3">
@@ -571,21 +926,33 @@ function DateStep({ state, dispatch }) {
           min={minDate}
           max={win.endDate}
           value={state.date}
-          onChange={(e) =>
-            dispatch({ type: "UPDATE", field: "date", value: e.target.value })
-          }
+          onChange={(e) => {
+            if (onDateChange) {
+              onDateChange(e.target.value);
+            } else {
+              dispatch({
+                type: "UPDATE",
+                field: "date",
+                value: e.target.value,
+              });
+            }
+          }}
           className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-4 pl-12 pr-4 text-base font-semibold text-slate-800 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
         />
       </div>
       <p className="mt-3 text-sm text-slate-500">
-        Choose a day within the service center's current scheduling window.
+        Appointments require at least 2 operating days advance notice. Choose an
+        upcoming date within the service center&apos;s current scheduling
+        window.
       </p>
     </div>
   );
 }
 
 /* ── Step 4: Time Slot (from backend /api/schedule/slots) ── */
-function TimeStep({ state, dispatch }) {
+function TimeStep({ state, dispatch, onSelectSlot, onRefreshSlots }) {
+  const isToday = state.date === getLocalDateString();
+
   if (state.slotsLoading) {
     return (
       <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-500">
@@ -600,10 +967,18 @@ function TimeStep({ state, dispatch }) {
       <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-5 py-12 text-center">
         <Clock3 size={28} className="mx-auto text-slate-300" />
         <p className="mt-3 text-sm font-bold text-slate-600">
-          No slots available for this date
+          {state.slotsMessage
+            ? state.slotsMessage
+            : isToday
+              ? "No remaining slots available for today"
+              : "No slots available for this date"}
         </p>
         <p className="mt-1 text-xs text-slate-400">
-          Try selecting a different date.
+          {state.slotsMessage
+            ? "Please select another date that meets the advance notice requirements."
+            : isToday
+              ? "All arrival slots for today have already passed or are fully booked. Please select an upcoming date."
+              : "Try selecting a different date."}
         </p>
       </div>
     );
@@ -613,59 +988,144 @@ function TimeStep({ state, dispatch }) {
     <div>
       <div className="mb-5 flex items-center justify-between">
         <p className="text-sm font-semibold text-slate-500">
-          Available times for {state.date}
+          Available times for {isToday ? `today (${state.date})` : state.date}
         </p>
-        <Clock3 className="text-blue-600" size={20} />
+        <button
+          type="button"
+          onClick={onRefreshSlots}
+          disabled={state.slotsLoading}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-blue-600 disabled:opacity-50"
+        >
+          <RefreshCw
+            size={13}
+            className={state.slotsLoading ? "animate-spin text-blue-600" : ""}
+          />
+          <span>Refresh</span>
+        </button>
       </div>
-      {state.slot && (
-        <div className="mb-5 flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3">
-          <Clock3 size={18} className="text-blue-600" />
+
+      {state.holdExpired && (
+        <div className="mb-5 flex items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">
+          <AlertCircle size={20} className="shrink-0 text-amber-600" />
           <div>
-            <p className="text-sm font-bold text-blue-900">
-              Selected: {state.slot}
+            <p className="text-sm font-bold">Hold expired</p>
+            <p className="text-xs text-amber-700">
+              Your reservation for this time slot has expired. Please select a
+              time slot again.
             </p>
-            {state.secondsLeft > 0 && (
-              <p className="mt-0.5 text-xs font-semibold text-blue-600">
-                Hold expires in {Math.floor(state.secondsLeft / 60)}:{String(state.secondsLeft % 60).padStart(2, "0")}
-              </p>
-            )}
           </div>
         </div>
       )}
-      <div className="grid gap-2 sm:grid-cols-3">
+
+      {state.slot && !state.holdExpired && (
+        <div className="mb-5 flex items-center justify-between rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Clock3 size={18} className="text-blue-600" />
+            <div>
+              <p className="text-sm font-bold text-blue-900">
+                Selected: {state.slot}
+              </p>
+              {state.secondsLeft > 0 && (
+                <p className="mt-0.5 text-xs font-semibold text-blue-600">
+                  Hold active · expires in {Math.floor(state.secondsLeft / 60)}:
+                  {String(state.secondsLeft % 60).padStart(2, "0")}
+                </p>
+              )}
+            </div>
+          </div>
+          {state.slotHolding && (
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-600">
+              <LoaderCircle size={15} className="animate-spin" />
+              <span>Reserving slot...</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-3">
         {state.availableSlots.map((slot) => {
           if (slot.isBreak) {
             return (
               <div
                 key={slot.label}
-                className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-center text-xs font-semibold text-slate-400"
+                className="flex items-center justify-center rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-center text-xs font-semibold text-slate-400"
               >
                 Break · {slot.label}
               </div>
             );
           }
-          const isSelected = state.slot === slot.label;
+
+          const isSelected =
+            !state.holdExpired &&
+            Boolean(state.slot) &&
+            state.slot === slot.label;
+
+          const isUnavailable =
+            !slot.isSelectable && !isSelected && !slot.isHeldByCurrentUser;
+
+          if (isUnavailable) {
+            return (
+              <div
+                key={slot.label}
+                onClick={() => onSelectSlot && onSelectSlot(slot)}
+                className="group relative flex cursor-not-allowed flex-col items-center justify-center rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 text-center transition hover:border-amber-300"
+                title={slot.holdStatusMessage || "Reserved"}
+              >
+                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                  <Lock size={13} className="text-amber-600" />
+                  <span>{slot.label}</span>
+                </div>
+                <span className="mt-1 text-[10px] font-semibold text-amber-700">
+                  {slot.holdStatusMessage || "Fully reserved"}
+                </span>
+              </div>
+            );
+          }
+
+          if (isSelected) {
+            return (
+              <button
+                key={slot.label}
+                type="button"
+                onClick={() => onSelectSlot && onSelectSlot(slot)}
+                className="flex flex-col items-center justify-center rounded-xl border border-[#0261F3] bg-blue-50 p-3.5 text-[#0261F3] ring-4 ring-blue-500/10 transition"
+              >
+                <div className="flex items-center gap-1.5 text-sm font-bold">
+                  <Check size={16} />
+                  <span>{slot.label}</span>
+                </div>
+                {state.secondsLeft > 0 && !state.holdExpired && (
+                  <span className="mt-1 text-[11px] font-semibold text-blue-600">
+                    Held for {Math.floor(state.secondsLeft / 60)}:
+                    {String(state.secondsLeft % 60).padStart(2, "0")}
+                  </span>
+                )}
+              </button>
+            );
+          }
+
+          const capacityText =
+            slot.availableCapacity !== undefined &&
+            slot.availableCapacity !== null
+              ? slot.availableCapacity === 1
+                ? "1 spot left"
+                : `${slot.availableCapacity} spots left`
+              : slot.holdStatusMessage || "Available";
+
           return (
             <button
               key={slot.label}
               type="button"
-              disabled={!slot.isSelectable}
-              onClick={() =>
-                dispatch({
-                  type: "SELECT_SLOT",
-                  label: slot.label,
-                  now: Date.now(),
-                })
-              }
-              className={`rounded-xl border px-4 py-3 text-sm font-bold transition ${
-                isSelected
-                  ? "border-[#0261F3] bg-blue-50 text-[#0261F3] ring-4 ring-blue-500/10"
-                  : slot.isSelectable
-                    ? "border-slate-200 text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-[#0261F3]"
-                    : "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300"
-              }`}
+              disabled={state.slotHolding}
+              onClick={() => onSelectSlot && onSelectSlot(slot)}
+              className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-white p-3.5 text-sm font-bold text-slate-700 transition hover:border-blue-400 hover:bg-blue-50/50 hover:text-[#0261F3] disabled:cursor-not-allowed disabled:border-slate-100 disabled:bg-slate-50 disabled:text-slate-300 active:scale-[0.98]"
             >
-              {slot.label}
+              <span>{slot.label}</span>
+              <span
+                className={`mt-1 text-[10px] font-semibold ${slot.availableCapacity === 1 ? "text-amber-600 font-bold" : "text-slate-400"}`}
+              >
+                {capacityText}
+              </span>
             </button>
           );
         })}
@@ -690,10 +1150,18 @@ function HandoverStep({ state, dispatch }) {
               : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
           }`}
         >
-          <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${
-            state.handover === option ? "bg-[#0261F3] text-white" : "bg-slate-100 text-slate-500"
-          }`}>
-            {option === "Drop-off" ? <CarFront size={20} /> : <MapPin size={20} />}
+          <span
+            className={`flex h-11 w-11 items-center justify-center rounded-xl ${
+              state.handover === option
+                ? "bg-[#0261F3] text-white"
+                : "bg-slate-100 text-slate-500"
+            }`}
+          >
+            {option === "Drop-off" ? (
+              <CarFront size={20} />
+            ) : (
+              <MapPin size={20} />
+            )}
           </span>
           <div>
             <p className="text-sm font-bold text-slate-900">{option}</p>
@@ -729,8 +1197,12 @@ function ExtrasStep({ state, dispatch }) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-5 py-12 text-center">
         <Sparkles size={28} className="mx-auto text-slate-300" />
-        <p className="mt-3 text-sm font-bold text-slate-600">No additional services available</p>
-        <p className="mt-1 text-xs text-slate-400">You can proceed without selecting extras.</p>
+        <p className="mt-3 text-sm font-bold text-slate-600">
+          No additional services available
+        </p>
+        <p className="mt-1 text-xs text-slate-400">
+          You can proceed without selecting extras.
+        </p>
       </div>
     );
   }
@@ -742,24 +1214,30 @@ function ExtrasStep({ state, dispatch }) {
           <button
             key={svc.id}
             type="button"
-            onClick={() => dispatch({ type: "TOGGLE_SERVICE_BY_ID", serviceId: svc.id })}
+            onClick={() =>
+              dispatch({ type: "TOGGLE_SERVICE_BY_ID", serviceId: svc.id })
+            }
             className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${
               selected
                 ? "border-[#0261F3] bg-blue-50"
                 : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
             }`}
           >
-            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition ${
-              selected
-                ? "border-[#0261F3] bg-[#0261F3] text-white"
-                : "border-slate-200 bg-white"
-            }`}>
+            <span
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition ${
+                selected
+                  ? "border-[#0261F3] bg-[#0261F3] text-white"
+                  : "border-slate-200 bg-white"
+              }`}
+            >
               {selected && <Check size={14} />}
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-slate-800">{svc.name}</p>
               {svc.description && (
-                <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{svc.description}</p>
+                <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">
+                  {svc.description}
+                </p>
               )}
             </div>
             <span className="shrink-0 text-sm font-bold tabular-nums text-slate-700">
@@ -870,25 +1348,67 @@ function RequestRail({ state, selectedVehicle }) {
         </div>
       )}
       <div className="mt-5 space-y-4">
-        {[
-          ["Problem", state.problem ? "Added" : "Waiting"],
-          ["Preferred date", state.date || "Waiting"],
-          ["Time slot", state.slot || "Waiting"],
-          ["Handover", state.handover],
-        ].map(([label, value]) => (
-          <div
-            key={label}
-            className="flex items-center justify-between gap-3 text-xs"
+        <div className="flex items-center justify-between gap-3 text-xs">
+          <span className="font-semibold text-slate-500">Problem</span>
+          <span
+            className={`text-right font-bold ${state.problem ? "text-slate-800" : "text-slate-300"}`}
           >
-            <span className="font-semibold text-slate-500">{label}</span>
+            {state.problem ? "Added" : "Waiting"}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 text-xs">
+          <span className="font-semibold text-slate-500">Preferred date</span>
+          <span
+            className={`text-right font-bold ${state.date ? "text-slate-800" : "text-slate-300"}`}
+          >
+            {state.date || "Waiting"}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 text-xs">
+          <span className="font-semibold text-slate-500">Time slot</span>
+          <div className="text-right">
             <span
-              className={`text-right font-bold ${value === "Waiting" ? "text-slate-300" : "text-slate-800"}`}
+              className={`font-bold ${
+                state.holdExpired
+                  ? "text-amber-600 line-through"
+                  : state.slot
+                    ? "text-slate-800"
+                    : "text-slate-300"
+              }`}
             >
-              {value}
+              {state.slot || (state.holdExpired ? "Expired" : "Waiting")}
             </span>
+            {state.slot && state.secondsLeft > 0 && !state.holdExpired && (
+              <span className="block text-[10px] font-semibold text-blue-600">
+                ⏱ {Math.floor(state.secondsLeft / 60)}:
+                {String(state.secondsLeft % 60).padStart(2, "0")}
+              </span>
+            )}
+            {state.holdExpired && (
+              <span className="block text-[10px] font-bold text-amber-600">
+                Hold expired
+              </span>
+            )}
           </div>
-        ))}
+        </div>
+
+        <div className="flex items-center justify-between gap-3 text-xs">
+          <span className="font-semibold text-slate-500">Handover</span>
+          <span className="text-right font-bold text-slate-800">
+            {state.handover}
+          </span>
+        </div>
       </div>
+
+      {state.holdExpired && (
+        <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800">
+          <AlertCircle size={15} className="mb-1 inline text-amber-600" /> Slot
+          hold expired. Please re-select your slot when continuing.
+        </div>
+      )}
+
       <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-700">
         <BatteryCharging size={18} className="mb-2" />
         Your details stay in this draft while you move through the steps.
@@ -929,7 +1449,9 @@ function SubmittedView({ request, onStartNew }) {
           {request.photoCount > 0 && (
             <div className="mt-3 flex justify-between gap-4 text-sm">
               <span className="font-semibold text-slate-500">Photos</span>
-              <span className="font-bold text-slate-800">{request.photoCount} attached</span>
+              <span className="font-bold text-slate-800">
+                {request.photoCount} attached
+              </span>
             </div>
           )}
         </div>

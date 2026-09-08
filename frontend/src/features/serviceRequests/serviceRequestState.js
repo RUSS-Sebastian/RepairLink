@@ -26,7 +26,7 @@ export const STEPS = [
     label: "Time slot",
     title: "Make time for a smoother ride.",
     description:
-      "Pick an available arrival time. We'll hold your selection for five minutes.",
+      "Pick an available arrival time. We'll hold your selection for 50 seconds.",
   },
   {
     label: "Handover",
@@ -53,17 +53,18 @@ export const STEPS = [
   },
 ];
 
-export const HOLD_DURATION = 5 * 60 * 1000;
+export const HOLD_DURATION = 50 * 1000;
 
 export const MAX_PHOTOS = 5;
 export const MAX_PHOTO_SIZE = 10 * 1024 * 1024; // 10MB
 export const ACCEPTED_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
-export function createInitialState(vehicles = []) {
+export function createInitialState(vehicles = [], initialVehicleId = "") {
+  const hasInitialVehicle = Boolean(initialVehicleId);
   return {
-    step: 0,
+    step: hasInitialVehicle ? 1 : 0,
     vehicles: vehicles.map((v) => ({ ...v })),
-    vehicleId: "",
+    vehicleId: initialVehicleId || "",
     problem: "",
     media: [], // { id, file: File, filename, sizeMb, previewUrl, status: 'Ready' }
     date: "",
@@ -78,6 +79,9 @@ export function createInitialState(vehicles = []) {
     scheduleWindow: null, // { startDate, endDate, operatingDays, ... }
     availableSlots: [], // SlotDto[] from backend
     slotsLoading: false,
+    slotsMessage: "",
+    slotHolding: false,
+    activeVehicleIds: [], // array of vehicle IDs with active service requests
     error: "",
     pageError: "",
     submitting: false,
@@ -89,16 +93,44 @@ export function getSecondsLeft(holdUntil, now) {
   return holdUntil ? Math.max(0, Math.ceil((holdUntil - now) / 1000)) : 0;
 }
 
+export function getLocalDateString(d = new Date()) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function validateStep(state, step = state.step) {
-  if (
-    step === 0 &&
-    !state.vehicles.some((v) => v.id === state.vehicleId)
-  )
-    return "Please select a vehicle.";
+  if (step === 0) {
+    if (!state.vehicles.some((v) => v.id === state.vehicleId))
+      return "Please select a vehicle.";
+    if (state.activeVehicleIds?.includes(state.vehicleId))
+      return "This vehicle already has an active service request. You cannot submit another request until the current one is cancelled or rejected.";
+  }
   if (step === 1 && state.problem.trim().length < 10)
     return "Please describe the problem (at least 10 characters).";
-  if (step === 3 && !state.date) return "Please select a preferred date.";
-  if (step === 4 && !state.slot) return "Please select a time slot.";
+  if (step === 3) {
+    if (!state.date) return "Please select a preferred date.";
+    const today = getLocalDateString();
+    if (state.date < today) return "Preferred date cannot be in the past.";
+    if (
+      state.scheduleWindow?.startDate &&
+      state.date < state.scheduleWindow.startDate
+    ) {
+      return `Appointments must be booked at least 2 available working days in advance (earliest is ${state.scheduleWindow.startDate}).`;
+    }
+    if (
+      state.scheduleWindow?.endDate &&
+      state.date > state.scheduleWindow.endDate
+    ) {
+      return `Preferred date cannot be after ${state.scheduleWindow.endDate}.`;
+    }
+  }
+  if (step === 4) {
+    if (state.holdExpired)
+      return "Your slot hold has expired. Please select a time slot again.";
+    if (!state.slot) return "Please select a time slot.";
+  }
   if (step === 5 && state.handover === "Pickup" && !state.pickupLocation.trim())
     return "Please enter your pickup location.";
   return "";
@@ -115,12 +147,26 @@ export function validatePhoto(file) {
 }
 
 function expireHold(state) {
+  const updatedSlots = (state.availableSlots || []).map((s) => {
+    if (s.isHeldByCurrentUser || (state.slot && s.label === state.slot)) {
+      return {
+        ...s,
+        isHeld: false,
+        isHeldByCurrentUser: false,
+        isSelectable: true,
+        closureReason: null,
+      };
+    }
+    return s;
+  });
+
   return {
     ...state,
     slot: "",
     holdUntil: null,
     secondsLeft: 0,
     holdExpired: true,
+    availableSlots: updatedSlots,
   };
 }
 
@@ -130,9 +176,13 @@ export function serviceRequestReducer(state, action) {
   switch (action.type) {
     case "UPDATE": {
       if (
-        !["vehicleId", "problem", "date", "handover", "pickupLocation"].includes(
-          action.field,
-        )
+        ![
+          "vehicleId",
+          "problem",
+          "date",
+          "handover",
+          "pickupLocation",
+        ].includes(action.field)
       )
         return state;
       const next = { ...state, [action.field]: action.value, error: "" };
@@ -144,6 +194,7 @@ export function serviceRequestReducer(state, action) {
           secondsLeft: 0,
           holdExpired: false,
           pageError: "",
+          slotsMessage: "",
           availableSlots: [],
           slotsLoading: true,
         };
@@ -152,10 +203,28 @@ export function serviceRequestReducer(state, action) {
     }
     case "SET_VEHICLES": {
       const vehicles = action.vehicles.map((v) => ({ ...v }));
-      const vehicleId = vehicles.some((v) => v.id === state.vehicleId)
-        ? state.vehicleId
-        : "";
-      return { ...state, vehicles, vehicleId, error: "" };
+      if (vehicles.length === 0) {
+        return { ...state, vehicles };
+      }
+      const targetId = action.preselectedVehicleId || state.vehicleId;
+      const matched = vehicles.find((v) => v.id === targetId);
+      const vehicleId = matched ? matched.id : "";
+      let step = state.step;
+      if (action.preselectedVehicleId && matched && state.step === 0) {
+        step = 1;
+      } else if (targetId && !matched && state.step === 1 && !state.problem) {
+        step = 0;
+      }
+      return { ...state, vehicles, vehicleId, step, error: "" };
+    }
+    case "PRESELECT_VEHICLE": {
+      const targetId = action.vehicleId;
+      return {
+        ...state,
+        vehicleId: targetId,
+        step: state.step === 0 ? 1 : state.step,
+        error: "",
+      };
     }
     case "ADD_VEHICLE":
       return {
@@ -183,6 +252,10 @@ export function serviceRequestReducer(state, action) {
       };
     }
 
+    // Active vehicle ids
+    case "SET_ACTIVE_VEHICLE_IDS":
+      return { ...state, activeVehicleIds: action.ids || [] };
+
     // Schedule window
     case "SET_SCHEDULE_WINDOW":
       return { ...state, scheduleWindow: action.window };
@@ -192,26 +265,59 @@ export function serviceRequestReducer(state, action) {
       return { ...state, slotsLoading: action.loading };
     case "SET_AVAILABLE_SLOTS":
       return { ...state, availableSlots: action.slots, slotsLoading: false };
+    case "SET_SLOTS_MESSAGE":
+      return { ...state, slotsMessage: action.message || "" };
 
-    // Slot selection
-    case "SELECT_SLOT": {
-      if (!state.date || !action.label) return state;
+    // Slot selection & holds
+    case "HOLD_SLOT_START":
+      return { ...state, slotHolding: true, pageError: "", error: "" };
+    case "HOLD_SLOT_SUCCESS": {
+      const expiresMs = action.expiresAt
+        ? new Date(action.expiresAt).getTime()
+        : action.now + HOLD_DURATION;
+      const secondsLeft =
+        action.secondsLeft != null
+          ? action.secondsLeft
+          : getSecondsLeft(expiresMs, action.now);
       return {
         ...state,
         slot: action.label,
-        holdUntil: action.now + HOLD_DURATION,
-        secondsLeft: 300,
+        holdUntil: expiresMs,
+        secondsLeft,
         holdExpired: false,
+        slotHolding: false,
         error: "",
         pageError: "",
       };
     }
+    case "HOLD_SLOT_ERROR":
+      return {
+        ...state,
+        slotHolding: false,
+        pageError: action.message || "Failed to hold slot.",
+      };
+    case "SELECT_SLOT": {
+      if (!state.date || !action.label) return state;
+      const expiresMs = action.expiresAt
+        ? new Date(action.expiresAt).getTime()
+        : action.now + HOLD_DURATION;
+      return {
+        ...state,
+        slot: action.label,
+        holdUntil: expiresMs,
+        secondsLeft: action.secondsLeft != null ? action.secondsLeft : 50,
+        holdExpired: false,
+        slotHolding: false,
+        error: "",
+        pageError: "",
+      };
+    }
+    case "EXPIRE_HOLD":
+      return expireHold(state);
     case "TICK": {
       if (!state.holdUntil) return state;
       const secondsLeft = getSecondsLeft(state.holdUntil, action.now);
-      return secondsLeft === 0
-        ? expireHold(state)
-        : { ...state, secondsLeft };
+      return secondsLeft === 0 ? expireHold(state) : { ...state, secondsLeft };
     }
 
     // Additional services (from DB)
@@ -235,10 +341,18 @@ export function serviceRequestReducer(state, action) {
         ? { ...state, step: action.step, error: "" }
         : state;
     case "NEXT": {
-      const current =
-        state.holdUntil && getSecondsLeft(state.holdUntil, action.now) === 0
-          ? expireHold(state)
-          : state;
+      const isExpired =
+        state.holdUntil && getSecondsLeft(state.holdUntil, action.now) === 0;
+      let current = isExpired ? expireHold(state) : state;
+      if (current.step > 4 && (current.holdExpired || !current.slot)) {
+        return {
+          ...current,
+          step: 4,
+          pageError:
+            "Your time slot hold has expired. Please select a time slot again.",
+          error: "",
+        };
+      }
       const error = validateStep(current);
       return error
         ? { ...current, error }

@@ -5,75 +5,62 @@ import {
   AlertCircle,
   Calendar,
   CarFront,
-  CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   Clock,
   ExternalLink,
-  Eye,
-  Filter,
   Image as ImageIcon,
   LoaderCircle,
   MapPin,
   Maximize2,
-  Package,
   Plus,
   RefreshCw,
   Search,
   Sparkles,
-  Wrench,
+  Trash2,
   X,
   XCircle,
   Zap,
 } from "lucide-react";
-import { getCustomerServiceRequests } from "../../features/serviceRequests/serviceRequestApi";
+import {
+  getCustomerServiceRequests,
+  deleteServiceRequest,
+  cancelServiceRequest,
+} from "../../features/serviceRequests/serviceRequestApi";
 import { ROUTES } from "../../constants/routes";
 
 const BACKEND_URL = "http://localhost:8080";
-
-const STATUS_CONFIG = {
-  PENDING_REVIEW: {
-    label: "Pending Review",
-    badgeClass: "bg-amber-50 text-amber-700 border-amber-200",
-    dotClass: "bg-amber-500",
-    description:
-      "The service team is reviewing your symptoms and requested arrival window.",
-  },
-  APPOINTMENT_SCHEDULED: {
-    label: "Appointment Scheduled",
-    badgeClass: "bg-blue-50 text-blue-700 border-blue-200",
-    dotClass: "bg-[#0261F3]",
-    description: "Your appointment has been confirmed by the workshop.",
-  },
-  COMPLETED: {
-    label: "Completed",
-    badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    dotClass: "bg-emerald-500",
-    description: "Service has been completed and vehicle handed over.",
-  },
-  CANCELLED: {
-    label: "Cancelled",
-    badgeClass: "bg-slate-100 text-slate-600 border-slate-200",
-    dotClass: "bg-slate-400",
-    description: "This service request was cancelled.",
-  },
-  REJECTED: {
-    label: "Declined",
-    badgeClass: "bg-rose-50 text-rose-700 border-rose-200",
-    dotClass: "bg-rose-500",
-    description: "The service center could not accommodate this booking.",
-  },
-};
 
 export default function ActiveServicePage() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ALL");
   const [lightboxPhoto, setLightboxPhoto] = useState(null);
   const [cancellingRequest, setCancellingRequest] = useState(null);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [cancelFeedback, setCancelFeedback] = useState("");
+  const [deletingTarget, setDeletingTarget] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleCancelConfirm = async () => {
+    if (!cancellingRequest) return;
+    setIsCancelling(true);
+    try {
+      await cancelServiceRequest(cancellingRequest.id);
+      setRequests((prev) =>
+        prev.map((r) =>
+          r.id === cancellingRequest.id ? { ...r, status: "CANCELLED" } : r,
+        ),
+      );
+      setCancelFeedback(
+        `Service request for "${cancellingRequest.vehicle?.nickname || "your vehicle"}" was cancelled and removed from Active Service.`,
+      );
+      setCancellingRequest(null);
+    } catch (err) {
+      setError(err.message || "Failed to cancel service request.");
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   const loadRequests = useCallback(async () => {
     setLoading(true);
@@ -92,42 +79,50 @@ export default function ActiveServicePage() {
     loadRequests();
   }, [loadRequests]);
 
-  // Statistics
-  const stats = useMemo(() => {
-    const total = requests.length;
-    const pending = requests.filter(
-      (r) => r.status === "PENDING_REVIEW",
-    ).length;
-    const scheduled = requests.filter(
-      (r) => r.status === "APPOINTMENT_SCHEDULED",
-    ).length;
-    const completed = requests.filter((r) => r.status === "COMPLETED").length;
-    return { total, pending, scheduled, completed };
+  const handleDeleteConfirm = async () => {
+    if (!deletingTarget) return;
+    setIsDeleting(true);
+    try {
+      await deleteServiceRequest(deletingTarget.id);
+      setRequests((prev) => prev.filter((r) => r.id !== deletingTarget.id));
+      setCancelFeedback(
+        `Service request for "${deletingTarget.vehicle?.nickname || "your vehicle"}" was permanently deleted from the database.`,
+      );
+      setDeletingTarget(null);
+    } catch (err) {
+      setError(err.message || "Failed to delete service request.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Only requests waiting for workshop review appear on this page.
+  // Once status changes to APPOINTMENT_SCHEDULED or CANCELLED, they immediately disappear from this page.
+  const pendingRequests = useMemo(() => {
+    return requests.filter(
+      (req) =>
+        req.status === "PENDING_REVIEW" &&
+        req.status !== "APPOINTMENT_SCHEDULED" &&
+        req.status !== "CANCELLED",
+    );
   }, [requests]);
 
-  // Filtered requests
+  // Filter by search query (vehicle nickname, make, model, license, problem)
   const filteredRequests = useMemo(() => {
-    return requests.filter((req) => {
-      // Status match
-      if (statusFilter !== "ALL" && req.status !== statusFilter) {
-        return false;
-      }
-      // Search match (vehicle nickname, make, model, license, problem)
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const v = req.vehicle;
-        const vehicleMatch =
-          v?.nickname?.toLowerCase().includes(q) ||
-          v?.make?.toLowerCase().includes(q) ||
-          v?.model?.toLowerCase().includes(q) ||
-          v?.licensePlate?.toLowerCase().includes(q);
-        const problemMatch = req.problemDescription?.toLowerCase().includes(q);
-        const slotMatch = req.preferredTimeSlot?.toLowerCase().includes(q);
-        if (!vehicleMatch && !problemMatch && !slotMatch) return false;
-      }
-      return true;
+    if (!searchQuery.trim()) return pendingRequests;
+    const q = searchQuery.toLowerCase();
+    return pendingRequests.filter((req) => {
+      const v = req.vehicle;
+      const vehicleMatch =
+        v?.nickname?.toLowerCase().includes(q) ||
+        v?.make?.toLowerCase().includes(q) ||
+        v?.model?.toLowerCase().includes(q) ||
+        v?.licensePlate?.toLowerCase().includes(q);
+      const problemMatch = req.problemDescription?.toLowerCase().includes(q);
+      const slotMatch = req.preferredTimeSlot?.toLowerCase().includes(q);
+      return vehicleMatch || problemMatch || slotMatch;
     });
-  }, [requests, statusFilter, searchQuery]);
+  }, [pendingRequests, searchQuery]);
 
   return (
     <div className="min-h-full bg-[#F3F8FF] pb-14">
@@ -135,20 +130,21 @@ export default function ActiveServicePage() {
         {/* ─── Hero Header ─── */}
         <header className="relative overflow-hidden rounded-3xl bg-slate-950 px-6 py-8 text-white shadow-xl shadow-blue-900/10 sm:px-8">
           <div className="absolute -right-12 -top-16 h-52 w-52 rounded-full border-[24px] border-blue-500/20" />
-          <div className="absolute -bottom-10 right-32 h-36 w-36 rounded-full border-[16px] border-emerald-500/10" />
+          <div className="absolute -bottom-10 right-32 h-36 w-36 rounded-full border-[16px] border-amber-500/10" />
 
           <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-blue-500/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.2em] text-blue-300">
                 <Activity size={13} className="text-blue-400" />
-                Customer Portal
+                Active Service Requests
               </div>
               <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                Active Service & Requests
+                Pending Service Submissions
               </h1>
               <p className="mt-2 max-w-xl text-sm leading-6 text-slate-300">
-                Track your vehicle repair appointments, current service
-                progress, and details in real time.
+                Review your submitted requests while our technicians assess
+                symptoms and prepare your appointment. Once scheduled, your
+                booking moves to Appointments.
               </p>
             </div>
 
@@ -170,116 +166,69 @@ export default function ActiveServicePage() {
                 className="inline-flex items-center gap-2 rounded-xl bg-[#0261F3] px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700"
               >
                 <Plus size={15} />
-                Book New Service
+                Book Another Service
               </Link>
             </div>
           </div>
 
-          {/* ─── Metric Summary Cards ─── */}
-          <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+          {/* ─── Status Overview Cards ─── */}
+          <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 backdrop-blur-sm">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-amber-300">
+                  Requests Awaiting Scheduling
+                </p>
+                <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping" />
+              </div>
+              <p className="mt-1 text-2xl font-bold text-amber-100">
+                {pendingRequests.length}
+              </p>
+            </div>
             <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 backdrop-blur-sm">
               <p className="text-xs font-semibold text-slate-400">
-                Total Bookings
+                Workflow Notice
               </p>
-              <p className="mt-1 text-2xl font-bold text-white">
-                {stats.total}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 backdrop-blur-sm">
-              <p className="text-xs font-semibold text-amber-300">
-                Pending Review
-              </p>
-              <p className="mt-1 text-2xl font-bold text-amber-200">
-                {stats.pending}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-blue-500/20 bg-blue-500/10 p-4 backdrop-blur-sm">
-              <p className="text-xs font-semibold text-blue-300">Scheduled</p>
-              <p className="mt-1 text-2xl font-bold text-blue-200">
-                {stats.scheduled}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 backdrop-blur-sm">
-              <p className="text-xs font-semibold text-emerald-300">
-                Completed
-              </p>
-              <p className="mt-1 text-2xl font-bold text-emerald-200">
-                {stats.completed}
+              <p className="mt-1 text-xs leading-5 text-slate-300">
+                Once a request is confirmed and scheduled by the service center,
+                it disappears from this page and moves to your scheduled
+                appointments.
               </p>
             </div>
           </div>
         </header>
 
-        {/* ─── Filter & Search Bar ─── */}
-        <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between">
-          {/* Status Tabs */}
-          <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto [scrollbar-width:none]">
-            {[
-              { id: "ALL", label: "All", count: stats.total },
-              { id: "PENDING_REVIEW", label: "Pending", count: stats.pending },
-              {
-                id: "APPOINTMENT_SCHEDULED",
-                label: "Scheduled",
-                count: stats.scheduled,
-              },
-              { id: "COMPLETED", label: "Completed", count: stats.completed },
-              {
-                id: "CANCELLED",
-                label: "Cancelled",
-                count: requests.filter((r) => r.status === "CANCELLED").length,
-              },
-            ].map((tab) => {
-              const active = statusFilter === tab.id;
-              return (
+        {/* ─── Search Bar ─── */}
+        {pendingRequests.length > 0 && (
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="relative flex-1 max-w-md">
+              <Search
+                size={16}
+                className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by vehicle nickname, plate, or symptom..."
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/70 py-2 pl-9 pr-3 text-xs text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+              />
+              {searchQuery && (
                 <button
-                  key={tab.id}
                   type="button"
-                  onClick={() => setStatusFilter(tab.id)}
-                  className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition ${
-                    active
-                      ? "bg-[#0261F3] text-white shadow-sm shadow-blue-500/20"
-                      : "text-slate-600 hover:bg-slate-100"
-                  }`}
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 >
-                  {tab.label}
-                  <span
-                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                      active
-                        ? "bg-white/20 text-white"
-                        : "bg-slate-100 text-slate-500"
-                    }`}
-                  >
-                    {tab.count}
-                  </span>
+                  <X size={14} />
                 </button>
-              );
-            })}
-          </div>
+              )}
+            </div>
 
-          {/* Search Input */}
-          <div className="relative min-w-[240px]">
-            <Search
-              size={16}
-              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
-            />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search vehicle or problem..."
-              className="w-full rounded-xl border border-slate-200 bg-slate-50/70 py-2 pl-9 pr-3 text-xs text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                <X size={14} />
-              </button>
-            )}
+            <p className="text-xs font-semibold text-slate-500">
+              Showing {filteredRequests.length} pending request
+              {filteredRequests.length === 1 ? "" : "s"}
+            </p>
           </div>
-        </div>
+        )}
 
         {/* ─── Feedback Banner ─── */}
         {cancelFeedback && (
@@ -330,10 +279,6 @@ export default function ActiveServicePage() {
                 </div>
                 <div className="mt-4 h-4 w-3/4 rounded bg-slate-200" />
                 <div className="mt-2 h-4 w-1/2 rounded bg-slate-200" />
-                <div className="mt-6 flex gap-3">
-                  <div className="h-16 w-16 rounded-xl bg-slate-200" />
-                  <div className="h-16 w-16 rounded-xl bg-slate-200" />
-                </div>
               </div>
             ))}
           </div>
@@ -342,30 +287,27 @@ export default function ActiveServicePage() {
         {/* ─── Empty State ─── */}
         {!loading && !error && filteredRequests.length === 0 && (
           <div className="rounded-3xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
               <Activity size={32} />
             </div>
             <h3 className="mt-4 text-lg font-bold text-slate-900">
-              {searchQuery || statusFilter !== "ALL"
-                ? "No service requests match your filter"
-                : "No active service requests yet"}
+              {searchQuery
+                ? "No pending requests match your search"
+                : "No pending service requests"}
             </h3>
             <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">
-              {searchQuery || statusFilter !== "ALL"
-                ? "Try adjusting your search keywords or switching the status filter tab."
-                : "When you book a service for your vehicle, its real-time progress and details will show up right here."}
+              {searchQuery
+                ? "Try clearing your search query to see all pending submissions."
+                : "When you submit a service request, it appears here while awaiting review. Once scheduled, it transitions to your appointments."}
             </p>
             <div className="mt-6 flex justify-center gap-3">
-              {searchQuery || statusFilter !== "ALL" ? (
+              {searchQuery ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    setSearchQuery("");
-                    setStatusFilter("ALL");
-                  }}
+                  onClick={() => setSearchQuery("")}
                   className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
                 >
-                  Clear Filters
+                  Clear Search
                 </button>
               ) : (
                 <Link
@@ -373,14 +315,14 @@ export default function ActiveServicePage() {
                   className="inline-flex items-center gap-2 rounded-xl bg-[#0261F3] px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700"
                 >
                   <Plus size={15} />
-                  Book Your First Service
+                  Book a Service Request
                 </Link>
               )}
             </div>
           </div>
         )}
 
-        {/* ─── Request Cards List ─── */}
+        {/* ─── Pending Requests Cards List ─── */}
         {!loading && !error && filteredRequests.length > 0 && (
           <div className="space-y-4">
             {filteredRequests.map((req) => (
@@ -389,6 +331,7 @@ export default function ActiveServicePage() {
                 request={req}
                 onOpenPhoto={(photo) => setLightboxPhoto(photo)}
                 onCancelClick={() => setCancellingRequest(req)}
+                onDeleteClick={() => setDeletingTarget(req)}
               />
             ))}
           </div>
@@ -406,13 +349,19 @@ export default function ActiveServicePage() {
         {cancellingRequest && (
           <CancelModal
             request={cancellingRequest}
+            isCancelling={isCancelling}
             onClose={() => setCancellingRequest(null)}
-            onConfirm={() => {
-              setCancellingRequest(null);
-              setCancelFeedback(
-                `Cancellation preview: Request for "${cancellingRequest.vehicle?.nickname || "your vehicle"}" has a cancellation note flagged. Backend cancellation flow is currently in preview.`,
-              );
-            }}
+            onConfirm={handleCancelConfirm}
+          />
+        )}
+
+        {/* ─── Delete Confirmation Modal (Dev Data Cleaning) ─── */}
+        {deletingTarget && (
+          <DeleteModal
+            request={deletingTarget}
+            isDeleting={isDeleting}
+            onClose={() => setDeletingTarget(null)}
+            onConfirm={handleDeleteConfirm}
           />
         )}
       </div>
@@ -421,26 +370,22 @@ export default function ActiveServicePage() {
 }
 
 /* ─── Service Request Card Component ─── */
-function ServiceRequestCard({ request, onOpenPhoto, onCancelClick }) {
+function ServiceRequestCard({
+  request,
+  onOpenPhoto,
+  onCancelClick,
+  onDeleteClick,
+}) {
   const [expandedProblem, setExpandedProblem] = useState(false);
-  const cfg = STATUS_CONFIG[request.status] || {
-    label: request.status,
-    badgeClass: "bg-slate-100 text-slate-700 border-slate-200",
-    dotClass: "bg-slate-400",
-    description: "",
-  };
-
   const v = request.vehicle;
   const isEv = v?.vehicleType === "EV";
   const VehicleIcon = isEv ? Zap : CarFront;
 
-  // Resolve photo URL
   const resolvePhotoUrl = (stored) => {
     if (!stored) return "";
     return stored.startsWith("http") ? stored : `${BACKEND_URL}${stored}`;
   };
 
-  // Format created date
   const createdFormatted = useMemo(() => {
     if (!request.createdAt) return "";
     try {
@@ -465,13 +410,9 @@ function ServiceRequestCard({ request, onOpenPhoto, onCancelClick }) {
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/60 px-5 py-4 sm:px-6">
         <div className="flex flex-wrap items-center gap-3">
           {/* Status Badge */}
-          <span
-            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold ${cfg.badgeClass}`}
-          >
-            <span
-              className={`h-2 w-2 rounded-full ${cfg.dotClass} animate-pulse`}
-            />
-            {cfg.label}
+          <span className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
+            <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+            Pending Workshop Review
           </span>
 
           {/* Vehicle summary badge */}
@@ -508,7 +449,7 @@ function ServiceRequestCard({ request, onOpenPhoto, onCancelClick }) {
             </span>
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">
-                Preferred Date
+                Requested Date
               </p>
               <p className="truncate text-xs font-bold text-slate-900">
                 {request.preferredDate || "Not set"}
@@ -522,7 +463,7 @@ function ServiceRequestCard({ request, onOpenPhoto, onCancelClick }) {
             </span>
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                Arrival Slot
+                Preferred Time Slot
               </p>
               <p className="truncate text-xs font-bold text-slate-900">
                 {request.preferredTimeSlot || "Flexible"}
@@ -536,7 +477,7 @@ function ServiceRequestCard({ request, onOpenPhoto, onCancelClick }) {
             </span>
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                Handover
+                Handover Method
               </p>
               <p className="truncate text-xs font-bold text-slate-900">
                 {request.handoverMethod === "PICKUP"
@@ -547,7 +488,7 @@ function ServiceRequestCard({ request, onOpenPhoto, onCancelClick }) {
           </div>
         </div>
 
-        {/* Problem Description Callout */}
+        {/* Symptoms / Problem Description */}
         <div className="mt-5 rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
           <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
             Reported Symptoms
@@ -563,15 +504,7 @@ function ServiceRequestCard({ request, onOpenPhoto, onCancelClick }) {
               onClick={() => setExpandedProblem(!expandedProblem)}
               className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800"
             >
-              {expandedProblem ? (
-                <>
-                  Show Less <ChevronUp size={13} />
-                </>
-              ) : (
-                <>
-                  Read More <ChevronDown size={13} />
-                </>
-              )}
+              {expandedProblem ? "Show Less" : "Read More"}
             </button>
           )}
         </div>
@@ -642,7 +575,7 @@ function ServiceRequestCard({ request, onOpenPhoto, onCancelClick }) {
           )}
       </div>
 
-      {/* Footer: Request ID + Actions */}
+      {/* Footer: Actions */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/40 px-5 py-3.5 sm:px-6">
         <div className="font-mono text-[11px] text-slate-400">
           Request ID: <span className="text-slate-600">{request.id}</span>
@@ -650,17 +583,16 @@ function ServiceRequestCard({ request, onOpenPhoto, onCancelClick }) {
 
         <div className="flex items-center gap-2">
           {/* Cancel Request Button */}
-          {request.status !== "COMPLETED" && request.status !== "CANCELLED" && (
-            <button
-              type="button"
-              onClick={onCancelClick}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-white px-3.5 py-2 text-xs font-bold text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700"
-            >
-              <XCircle size={14} />
-              Cancel Request
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onCancelClick}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+          >
+            <XCircle size={14} className="text-slate-500" />
+            Cancel Request
+          </button>
 
+          {/* Book Another Button */}
           <Link
             to={ROUTES.SERVICE_REQUEST}
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
@@ -668,6 +600,17 @@ function ServiceRequestCard({ request, onOpenPhoto, onCancelClick }) {
             <Plus size={14} />
             Book Another
           </Link>
+
+          {/* Delete Record Button (Dev data cleaning) */}
+          <button
+            type="button"
+            onClick={onDeleteClick}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50/70 px-3 py-2 text-xs font-bold text-red-700 shadow-sm transition hover:border-red-300 hover:bg-red-100"
+            title="Permanently remove from database (Dev data cleanup)"
+          >
+            <Trash2 size={13} className="text-red-600" />
+            Delete
+          </button>
         </div>
       </div>
     </article>
@@ -693,7 +636,6 @@ function PhotoLightboxModal({ photo, onClose }) {
         onClick={(e) => e.stopPropagation()}
         className="relative max-h-[90vh] max-w-4xl overflow-hidden rounded-3xl bg-slate-900 text-white shadow-2xl ring-1 ring-white/10"
       >
-        {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
           <div className="min-w-0 flex-1 pr-4">
             <p className="truncate text-sm font-bold text-white">
@@ -715,7 +657,6 @@ function PhotoLightboxModal({ photo, onClose }) {
           </button>
         </div>
 
-        {/* Image Container */}
         <div className="flex max-h-[75vh] items-center justify-center overflow-auto bg-slate-950 p-4">
           <img
             src={photo.fullUrl}
@@ -724,7 +665,6 @@ function PhotoLightboxModal({ photo, onClose }) {
           />
         </div>
 
-        {/* Modal Footer */}
         <div className="flex items-center justify-end border-t border-slate-800 px-6 py-3">
           <a
             href={photo.fullUrl}
@@ -741,7 +681,7 @@ function PhotoLightboxModal({ photo, onClose }) {
 }
 
 /* ─── Cancel Confirmation Modal ─── */
-function CancelModal({ request, onClose, onConfirm }) {
+function CancelModal({ request, isCancelling, onClose, onConfirm }) {
   return (
     <div
       onClick={onClose}
@@ -751,7 +691,7 @@ function CancelModal({ request, onClose, onConfirm }) {
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-md overflow-hidden rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-slate-200"
       >
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-600">
           <XCircle size={28} />
         </div>
 
@@ -763,7 +703,7 @@ function CancelModal({ request, onClose, onConfirm }) {
           <span className="font-bold text-slate-800">
             {request.vehicle?.nickname || "your vehicle"}
           </span>{" "}
-          scheduled for{" "}
+          requested for{" "}
           <span className="font-bold text-slate-800">
             {request.preferredDate}
           </span>
@@ -773,25 +713,105 @@ function CancelModal({ request, onClose, onConfirm }) {
         <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
           <p className="font-bold">Cancellation Notice</p>
           <p className="mt-0.5 text-[11px] text-amber-700">
-            This action flags the request for cancellation. You can re-book
-            another time whenever you are ready.
+            Once cancelled, this request will immediately be removed from your
+            Active Service page. The record remains saved in your account
+            history.
           </p>
         </div>
 
         <div className="mt-6 flex gap-3">
           <button
             type="button"
+            disabled={isCancelling}
             onClick={onClose}
-            className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
+            className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
           >
             Keep Request
           </button>
           <button
             type="button"
+            disabled={isCancelling}
             onClick={onConfirm}
-            className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-rose-500/20 transition hover:bg-rose-700"
+            className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-slate-900 disabled:opacity-50"
           >
-            Confirm Cancellation
+            {isCancelling ? (
+              <>
+                <LoaderCircle size={14} className="animate-spin" />
+                Cancelling...
+              </>
+            ) : (
+              "Confirm Cancellation"
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Delete Confirmation Modal (Dev Data Cleaning) ─── */
+function DeleteModal({ request, isDeleting, onClose, onConfirm }) {
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md overflow-hidden rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-slate-200"
+      >
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-100 text-red-600">
+          <Trash2 size={28} />
+        </div>
+
+        <h3 className="mt-4 text-center text-lg font-bold text-slate-950">
+          Permanently Delete Request?
+        </h3>
+        <p className="mt-2 text-center text-xs leading-5 text-slate-500">
+          Are you sure you want to permanently delete this service request for{" "}
+          <span className="font-bold text-slate-800">
+            {request.vehicle?.nickname || "your vehicle"}
+          </span>
+          ?
+        </p>
+
+        <div className="mt-4 rounded-2xl border border-red-200 bg-red-50/80 p-3.5 text-xs text-red-800">
+          <p className="flex items-center gap-1.5 font-bold">
+            <AlertCircle size={14} className="shrink-0 text-red-600" />
+            Database Cleanup Feature
+          </p>
+          <p className="mt-1 text-[11px] leading-4 text-red-700">
+            This immediately hard-deletes the request from the database and
+            deletes all uploaded photos from disk. This cannot be undone.
+          </p>
+        </div>
+
+        <div className="mt-6 flex gap-3">
+          <button
+            type="button"
+            disabled={isDeleting}
+            onClick={onClose}
+            className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+          >
+            Keep Record
+          </button>
+          <button
+            type="button"
+            disabled={isDeleting}
+            onClick={onConfirm}
+            className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-red-500/25 transition hover:bg-red-700 disabled:opacity-50"
+          >
+            {isDeleting ? (
+              <>
+                <LoaderCircle size={14} className="animate-spin" />
+                Deleting...
+              </>
+            ) : (
+              <>
+                <Trash2 size={14} />
+                Delete Permanently
+              </>
+            )}
           </button>
         </div>
       </div>

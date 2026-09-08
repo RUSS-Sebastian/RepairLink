@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -19,6 +19,8 @@ import {
 import VehicleFormModal from "../../components/modals/VehicleFormModal";
 import DeleteVehicleModal from "../../components/modals/DeleteVehicleModal";
 import { useVehicles } from "../../context/VehicleContext";
+import { ROUTES } from "../../constants/routes";
+import { getActiveVehicleIds } from "../../features/serviceRequests/serviceRequestApi";
 
 function VehicleDetailsPage() {
   const { id } = useParams();
@@ -28,6 +30,17 @@ function VehicleDetailsPage() {
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [hasActiveRequest, setHasActiveRequest] = useState(false);
+
+  useEffect(() => {
+    if (!id) return;
+    getActiveVehicleIds()
+      .then((ids) => {
+        const idStrings = (ids || []).map((x) => String(x).toLowerCase());
+        setHasActiveRequest(idStrings.includes(String(id).toLowerCase()));
+      })
+      .catch(() => {});
+  }, [id]);
 
   const vehicle = getVehicle(id);
 
@@ -243,37 +256,74 @@ function VehicleDetailsPage() {
           </div>
         </section>
 
-        <section className="mt-6 overflow-hidden rounded-2xl bg-[#0261F3] shadow-sm">
-          <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:justify-between lg:p-8">
-            <div>
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-white">
-                  <Wrench size={22} />
+        {hasActiveRequest ? (
+          <section className="mt-6 overflow-hidden rounded-2xl bg-amber-500 shadow-sm">
+            <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:justify-between lg:p-8">
+              <div>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/20 text-white">
+                    <Clock3 size={22} />
+                  </div>
+
+                  <h2 className="text-xl font-bold text-white">
+                    Active Service Request in Progress
+                  </h2>
                 </div>
 
-                <h2 className="text-xl font-bold text-white">
-                  Need service for this vehicle?
-                </h2>
+                <p className="mt-3 max-w-xl text-sm leading-6 text-amber-50">
+                  This vehicle already has a pending service request awaiting
+                  workshop review. Another request cannot be submitted until
+                  this request is completed, cancelled, or rejected.
+                </p>
               </div>
 
-              <p className="mt-3 max-w-xl text-sm leading-6 text-blue-100">
-                Request a repair or maintenance service and keep your vehicle in
-                top condition.
-              </p>
+              <Link
+                to={ROUTES.ACTIVE_SERVICE}
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-amber-700 shadow-sm transition hover:bg-amber-50"
+              >
+                <Clock3 size={18} />
+                View Active Request
+              </Link>
             </div>
+          </section>
+        ) : (
+          <section className="mt-6 overflow-hidden rounded-2xl bg-[#0261F3] shadow-sm">
+            <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:justify-between lg:p-8">
+              <div>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-white">
+                    <Wrench size={22} />
+                  </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                alert(`Service request started for ${vehicle.nickname}.`);
-              }}
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-[#0261F3] transition hover:bg-blue-50"
-            >
-              <Wrench size={18} />
-              Request Service
-            </button>
-          </div>
-        </section>
+                  <h2 className="text-xl font-bold text-white">
+                    Need service for this vehicle?
+                  </h2>
+                </div>
+
+                <p className="mt-3 max-w-xl text-sm leading-6 text-blue-100">
+                  Request a repair or maintenance service and keep your vehicle
+                  in top condition.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  navigate(
+                    `${ROUTES.SERVICE_REQUEST}?vehicleId=${vehicle.id}`,
+                    {
+                      state: { selectedVehicleId: vehicle.id },
+                    },
+                  );
+                }}
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-[#0261F3] transition hover:bg-blue-50"
+              >
+                <Wrench size={18} />
+                Request Service
+              </button>
+            </div>
+          </section>
+        )}
       </main>
 
       {showEditModal && (

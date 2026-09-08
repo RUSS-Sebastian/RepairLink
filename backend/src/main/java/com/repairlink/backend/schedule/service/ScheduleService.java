@@ -7,21 +7,27 @@ import com.repairlink.backend.schedule.entity.ScheduleBlockedDate;
 import com.repairlink.backend.schedule.entity.ScheduleBreak;
 import com.repairlink.backend.schedule.entity.ScheduleConfiguration;
 import com.repairlink.backend.schedule.entity.ScheduleStatus;
+import com.repairlink.backend.schedule.entity.SlotHold;
 import com.repairlink.backend.schedule.repository.ScheduleBlockedDateRepository;
 import com.repairlink.backend.schedule.repository.ScheduleBreakRepository;
 import com.repairlink.backend.schedule.repository.ScheduleConfigurationRepository;
+import com.repairlink.backend.schedule.repository.SlotHoldRepository;
 import com.repairlink.backend.security.auth.entity.UserAccount;
 import com.repairlink.backend.security.auth.repository.UserAccountRepository;
+import com.repairlink.backend.schedule.entity.SlotHoldStatus;
+import com.repairlink.backend.serviceRequest.repository.ServiceRequestRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DayOfWeek;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -30,18 +36,24 @@ public class ScheduleService {
     private final ScheduleConfigurationRepository configurationRepository;
     private final ScheduleBreakRepository breakRepository;
     private final ScheduleBlockedDateRepository blockedDateRepository;
+    private final SlotHoldRepository slotHoldRepository;
     private final UserAccountRepository userRepository;
+    private final ServiceRequestRepository serviceRequestRepository;
 
     public ScheduleService(
             ScheduleConfigurationRepository configurationRepository,
             ScheduleBreakRepository breakRepository,
             ScheduleBlockedDateRepository blockedDateRepository,
-            UserAccountRepository userRepository
+            SlotHoldRepository slotHoldRepository,
+            UserAccountRepository userRepository,
+            ServiceRequestRepository serviceRequestRepository
     ) {
         this.configurationRepository = configurationRepository;
         this.breakRepository = breakRepository;
         this.blockedDateRepository = blockedDateRepository;
+        this.slotHoldRepository = slotHoldRepository;
         this.userRepository = userRepository;
+        this.serviceRequestRepository = serviceRequestRepository;
     }
 
     @Transactional(readOnly = true)
@@ -339,6 +351,16 @@ public class ScheduleService {
 
     @Transactional(readOnly = true)
     public DailySlotsResponse getDailySlots(LocalDate date) {
+        return getDailySlots(date, null);
+    }
+
+    @Transactional(readOnly = true)
+    public DailySlotsResponse getDailySlots(LocalDate date, UUID customerId) {
+        LocalDate today = LocalDate.now();
+        if (date.isBefore(today)) {
+            return new DailySlotsResponse(date, date.getDayOfWeek().name(), false, false, "Cannot book appointments for past dates.", null, Collections.emptyList());
+        }
+
         List<ScheduleConfiguration> configs = configurationRepository.findConfigurationsForDate(date);
         if (configs.isEmpty()) {
             return new DailySlotsResponse(date, date.getDayOfWeek().name(), false, false, "No active schedule configuration for this date.", null, Collections.emptyList());
@@ -346,6 +368,19 @@ public class ScheduleService {
 
         ScheduleConfiguration config = configs.get(0);
         String dayOfWeek = date.getDayOfWeek().name();
+
+        LocalDate earliestDate = calculateEarliestSelectableDate(config, today, ADVANCE_NOTICE_AVAILABLE_DAYS);
+        if (date.isBefore(earliestDate)) {
+            return new DailySlotsResponse(
+                    date,
+                    dayOfWeek,
+                    false,
+                    false,
+                    "Appointments must be booked at least " + ADVANCE_NOTICE_AVAILABLE_DAYS + " available working days in advance. Earliest available date is " + earliestDate + ".",
+                    config.getSlotDurationMinutes(),
+                    Collections.emptyList()
+            );
+        }
 
         if (config.getOperatingDays() == null || !config.getOperatingDays().contains(dayOfWeek)) {
             return new DailySlotsResponse(date, dayOfWeek, false, false, "Workshop is closed on " + dayOfWeek + "s.", config.getSlotDurationMinutes(), Collections.emptyList());
@@ -365,7 +400,75 @@ public class ScheduleService {
                 .toList();
 
         List<SlotDto> slots = generateSlots(config.getOpeningTime(), config.getClosingTime(), config.getSlotDurationMinutes(), dayBreaks);
-        return new DailySlotsResponse(date, dayOfWeek, true, false, null, config.getSlotDurationMinutes(), slots);
+
+        // If selecting today, only show slots that are strictly after the current time
+        if (date.equals(today)) {
+            LocalTime currentTime = LocalTime.now();
+            slots = slots.stream()
+                    .filter(slot -> slot.startTime().isAfter(currentTime))
+                    .toList();
+        }
+
+        int slotCapacity = (config.getSlotCapacity() != null && config.getSlotCapacity() > 0) ? config.getSlotCapacity() : 1;
+
+        Map<String, Long> bookingCounts = new HashMap<>();
+        for (Object[] row : serviceRequestRepository.countActiveBookingsByDateGroupByTimeSlot(date)) {
+            String slot = (String) row[0];
+            Long count = (Long) row[1];
+            bookingCounts.put(slot, count);
+        }
+
+        Instant now = Instant.now();
+        List<SlotHold> activeHolds = slotHoldRepository.findActiveHoldsByDate(date, now);
+        Map<String, List<SlotHold>> holdsBySlot = new HashMap<>();
+        for (SlotHold hold : activeHolds) {
+            holdsBySlot.computeIfAbsent(hold.getTimeSlot(), k -> new ArrayList<>()).add(hold);
+        }
+
+        List<SlotDto> annotatedSlots = slots.stream().map(slot -> {
+            if (slot.isBreak()) {
+                return slot;
+            }
+            long bookedCount = bookingCounts.getOrDefault(slot.label(), 0L);
+            List<SlotHold> slotHolds = holdsBySlot.getOrDefault(slot.label(), Collections.emptyList());
+            boolean isHeldByCurrentUser = customerId != null && slotHolds.stream()
+                    .anyMatch(h -> h.getCustomer().getUserId().equals(customerId));
+            long otherHoldsCount = slotHolds.stream()
+                    .filter(h -> customerId == null || !h.getCustomer().getUserId().equals(customerId))
+                    .count();
+
+            int availableCapacity = (int) Math.max(0, slotCapacity - bookedCount - otherHoldsCount);
+            boolean isSelectable = isHeldByCurrentUser || availableCapacity > 0;
+            boolean isHeld = !slotHolds.isEmpty();
+
+            String holdStatusMessage = null;
+            if (isHeldByCurrentUser) {
+                holdStatusMessage = "Held by you";
+            } else if (bookedCount >= slotCapacity) {
+                holdStatusMessage = "Fully booked";
+            } else if (availableCapacity == 0) {
+                holdStatusMessage = "Currently reserved by other customers";
+            } else if (availableCapacity == 1) {
+                holdStatusMessage = "1 spot left";
+            } else {
+                holdStatusMessage = availableCapacity + " spots available";
+            }
+
+            return new SlotDto(
+                    slot.startTime(),
+                    slot.endTime(),
+                    slot.label(),
+                    false,
+                    isSelectable,
+                    isHeld,
+                    isHeldByCurrentUser,
+                    holdStatusMessage,
+                    slotCapacity,
+                    availableCapacity
+            );
+        }).toList();
+
+        return new DailySlotsResponse(date, dayOfWeek, true, false, null, config.getSlotDurationMinutes(), annotatedSlots);
     }
 
     private LocalDate calculateEndDate(LocalDate startDate, int bookingWindowDays, List<String> operatingDays, Set<LocalDate> blockedDates) {
@@ -428,19 +531,191 @@ public class ScheduleService {
         return slots;
     }
 
+    public static final int ADVANCE_NOTICE_AVAILABLE_DAYS = 2;
+
+    public LocalDate calculateEarliestSelectableDate(ScheduleConfiguration config, LocalDate fromDate, int requiredAvailableDays) {
+        if (config == null || config.getOperatingDays() == null || config.getOperatingDays().isEmpty()) {
+            return fromDate.plusDays(requiredAvailableDays);
+        }
+
+        Set<String> operatingDays = new HashSet<>();
+        for (String day : config.getOperatingDays()) {
+            if (day != null) {
+                operatingDays.add(day.trim().toUpperCase());
+            }
+        }
+
+        Set<LocalDate> blockedDates = (config.getBlockedDates() != null)
+                ? config.getBlockedDates().stream()
+                        .map(ScheduleBlockedDate::getBlockedDate)
+                        .collect(Collectors.toSet())
+                : Collections.emptySet();
+
+        LocalDate current = fromDate.plusDays(1);
+        int counted = 0;
+        int maxLookaheadDays = 365;
+
+        while (counted < requiredAvailableDays && maxLookaheadDays-- > 0) {
+            String dayName = current.getDayOfWeek().name();
+            boolean isOperating = operatingDays.contains(dayName);
+            boolean isBlocked = blockedDates.contains(current);
+
+            if (isOperating && !isBlocked) {
+                counted++;
+                if (counted == requiredAvailableDays) {
+                    return current;
+                }
+            }
+            current = current.plusDays(1);
+        }
+
+        return current;
+    }
+
+    public void validateBookingDate(LocalDate date) {
+        if (date == null) {
+            throw new IllegalArgumentException("Preferred date is required.");
+        }
+        LocalDate today = LocalDate.now();
+        if (date.isBefore(today)) {
+            throw new IllegalArgumentException("Cannot book appointments for past dates.");
+        }
+
+        ScheduleConfiguration config = configurationRepository.findConfigurationsForDate(date).stream()
+                .findFirst()
+                .orElseGet(() -> configurationRepository.findFirstByStatus(ScheduleStatus.CURRENT).orElse(null));
+
+        if (config == null) {
+            throw new IllegalArgumentException("No active schedule configuration for this date.");
+        }
+
+        LocalDate earliestDate = calculateEarliestSelectableDate(config, today, ADVANCE_NOTICE_AVAILABLE_DAYS);
+        if (date.isBefore(earliestDate)) {
+            throw new IllegalArgumentException(
+                    "Appointments must be booked at least " + ADVANCE_NOTICE_AVAILABLE_DAYS +
+                    " available working days in advance. Earliest available date is " + earliestDate + "."
+            );
+        }
+
+        String dayOfWeek = date.getDayOfWeek().name();
+        if (config.getOperatingDays() == null || !config.getOperatingDays().contains(dayOfWeek)) {
+            throw new IllegalArgumentException("Workshop is closed on " + dayOfWeek + "s.");
+        }
+
+        boolean isBlocked = config.getBlockedDates() != null && config.getBlockedDates().stream()
+                .anyMatch(b -> b.getBlockedDate().equals(date));
+        if (isBlocked) {
+            throw new IllegalArgumentException("Selected date is blocked for service.");
+        }
+    }
+
     @Transactional(readOnly = true)
     public ScheduleWindowResponse getCurrentWindow() {
         return configurationRepository.findFirstByStatus(ScheduleStatus.CURRENT)
-                .map(config -> new ScheduleWindowResponse(
-                        config.getName(),
-                        config.getStartDate(),
-                        config.getEndDate(),
-                        config.getOperatingDays(),
-                        config.getOpeningTime(),
-                        config.getClosingTime(),
-                        config.getSlotDurationMinutes()
-                ))
+                .map(config -> {
+                    LocalDate today = LocalDate.now();
+                    LocalDate earliestDate = calculateEarliestSelectableDate(config, today, ADVANCE_NOTICE_AVAILABLE_DAYS);
+                    LocalDate effectiveStartDate = config.getStartDate();
+                    if (effectiveStartDate == null || effectiveStartDate.isBefore(earliestDate)) {
+                        effectiveStartDate = earliestDate;
+                    }
+                    return new ScheduleWindowResponse(
+                            config.getName(),
+                            effectiveStartDate,
+                            config.getEndDate(),
+                            config.getOperatingDays(),
+                            config.getOpeningTime(),
+                            config.getClosingTime(),
+                            config.getSlotDurationMinutes()
+                    );
+                })
                 .orElse(ScheduleWindowResponse.empty());
+    }
+
+    private static final long HOLD_DURATION_SECONDS = 50L;
+
+    @Transactional
+    public HoldSlotResponse holdSlot(UUID customerId, LocalDate date, String timeSlot) {
+        validateBookingDate(date);
+
+        LocalDate today = LocalDate.now();
+        if (date.equals(today)) {
+            LocalTime slotStart = parseSlotStartTime(timeSlot);
+            if (slotStart != null && !slotStart.isAfter(LocalTime.now())) {
+                throw new IllegalArgumentException("Cannot hold a time slot that is in the past.");
+            }
+        }
+
+        Instant now = Instant.now();
+        Optional<SlotHold> existingActiveHold = slotHoldRepository.findActiveCustomerHold(customerId, date, timeSlot, now);
+        if (existingActiveHold.isPresent()) {
+            SlotHold hold = existingActiveHold.get();
+            hold.setExpiresAt(now.plusSeconds(HOLD_DURATION_SECONDS));
+            SlotHold saved = slotHoldRepository.save(hold);
+            long secondsLeft = java.time.Duration.between(now, saved.getExpiresAt()).getSeconds();
+            return new HoldSlotResponse(date, timeSlot, saved.getExpiresAt(), Math.max(0, secondsLeft), "Slot hold refreshed.");
+        }
+
+        ScheduleConfiguration config = configurationRepository.findConfigurationsForDate(date).stream()
+                .findFirst()
+                .orElseGet(() -> configurationRepository.findFirstByStatus(ScheduleStatus.CURRENT).orElse(null));
+        int slotCapacity = (config != null && config.getSlotCapacity() != null && config.getSlotCapacity() > 0) ? config.getSlotCapacity() : 1;
+
+        long bookedCount = serviceRequestRepository.countActiveBookingsByDateAndTimeSlot(date, timeSlot);
+        List<SlotHold> activeHolds = slotHoldRepository.findActiveHoldsByDateAndTimeSlot(date, timeSlot, now);
+        long otherHoldsCount = activeHolds.stream()
+                .filter(h -> !h.getCustomer().getUserId().equals(customerId))
+                .count();
+
+        if (bookedCount + otherHoldsCount >= slotCapacity) {
+            throw new IllegalStateException("This time slot is fully reserved by other customers. Please choose another slot.");
+        }
+
+        // Soft release any existing active hold for this customer (customer can hold only 1 slot at a time)
+        slotHoldRepository.releaseActiveHoldsByCustomerId(customerId, now);
+
+        UserAccount customer = userRepository.findById(customerId)
+                .orElseThrow(() -> new IllegalArgumentException("Customer not found."));
+
+        Instant expiresAt = now.plusSeconds(HOLD_DURATION_SECONDS);
+        SlotHold newHold = new SlotHold(customer, date, timeSlot, expiresAt);
+        newHold.setStatus(SlotHoldStatus.ACTIVE);
+        SlotHold saved = slotHoldRepository.save(newHold);
+
+        return new HoldSlotResponse(date, timeSlot, saved.getExpiresAt(), HOLD_DURATION_SECONDS, "Slot successfully held for " + HOLD_DURATION_SECONDS + " seconds.");
+    }
+
+    public void validateSlotCapacity(LocalDate date, String timeSlot, UUID customerId) {
+        ScheduleConfiguration config = configurationRepository.findConfigurationsForDate(date).stream()
+                .findFirst()
+                .orElseGet(() -> configurationRepository.findFirstByStatus(ScheduleStatus.CURRENT).orElse(null));
+        int slotCapacity = (config != null && config.getSlotCapacity() != null && config.getSlotCapacity() > 0) ? config.getSlotCapacity() : 1;
+
+        Instant now = Instant.now();
+        long bookedCount = serviceRequestRepository.countActiveBookingsByDateAndTimeSlot(date, timeSlot);
+        List<SlotHold> activeHolds = slotHoldRepository.findActiveHoldsByDateAndTimeSlot(date, timeSlot, now);
+        long otherHoldsCount = activeHolds.stream()
+                .filter(h -> customerId == null || !h.getCustomer().getUserId().equals(customerId))
+                .count();
+
+        if (bookedCount + otherHoldsCount >= slotCapacity) {
+            throw new IllegalStateException("This time slot is fully booked. Please choose another slot.");
+        }
+    }
+
+    private LocalTime parseSlotStartTime(String timeSlot) {
+        if (timeSlot == null || timeSlot.isBlank()) return null;
+        try {
+            String startStr = timeSlot.split("–|-")[0].trim();
+            return LocalTime.parse(startStr, DateTimeFormatter.ofPattern("HH:mm"));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Transactional
+    public void releaseHold(UUID customerId) {
+        slotHoldRepository.releaseActiveHoldsByCustomerId(customerId, Instant.now());
     }
 }
 

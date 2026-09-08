@@ -13,9 +13,55 @@ export async function getCurrentScheduleWindow() {
 }
 
 export async function getAvailableSlots(date) {
-  const response = await fetch(`${API_BASE_URL}/schedule/slots?date=${date}`);
+  const token = localStorage.getItem("repairlink_auth_token");
+  const headers = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  const response = await fetch(`${API_BASE_URL}/schedule/slots?date=${date}`, {
+    headers,
+  });
   if (!response.ok) throw new Error("Failed to load available slots.");
   return response.json();
+}
+
+export async function holdSlot(date, timeSlot) {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/schedule/slots/hold`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ date, timeSlot }),
+  });
+  if (!response.ok) {
+    let message = "Failed to hold slot.";
+    let code = null;
+    try {
+      const payload = await response.json();
+      message = payload?.message || payload?.error || message;
+      code = payload?.code;
+    } catch {}
+    const err = new Error(message);
+    err.status = response.status;
+    err.code = code;
+    throw err;
+  }
+  return response.json();
+}
+
+export async function releaseSlotHold() {
+  const token = localStorage.getItem("repairlink_auth_token");
+  if (!token) return;
+  try {
+    await fetch(`${API_BASE_URL}/schedule/slots/hold`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    // silent catch
+  }
 }
 
 export async function getAdditionalServices(vehicleType) {
@@ -66,5 +112,61 @@ export async function getCustomerServiceRequests() {
     }
     throw new Error(message);
   }
+  return response.json();
+}
+
+export async function deleteServiceRequest(id) {
+  const token = getToken();
+  const response = await fetch(
+    `${API_BASE_URL}/customer/service-requests/${id}`,
+    {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+  if (!response.ok && response.status !== 204) {
+    let message = "Failed to delete service request.";
+    try {
+      const payload = await response.json();
+      message = payload?.message || payload?.error || message;
+    } catch {
+      // fallback
+    }
+    throw new Error(message);
+  }
+  return true;
+}
+
+export async function cancelServiceRequest(id) {
+  const token = getToken();
+  const response = await fetch(
+    `${API_BASE_URL}/customer/service-requests/${id}/cancel`,
+    {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+  if (!response.ok && response.status !== 204) {
+    let message = "Failed to cancel service request.";
+    try {
+      const payload = await response.json();
+      message = payload?.message || payload?.error || message;
+    } catch {
+      // fallback
+    }
+    throw new Error(message);
+  }
+  return true;
+}
+
+export async function getActiveVehicleIds() {
+  const token = getToken();
+  const response = await fetch(
+    `${API_BASE_URL}/customer/service-requests/active-vehicle-ids`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+  if (!response.ok) return [];
   return response.json();
 }
