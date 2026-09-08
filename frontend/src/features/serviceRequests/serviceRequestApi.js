@@ -21,9 +21,12 @@ export async function getAvailableSlots(date) {
 export async function getAdditionalServices(vehicleType) {
   const token = getToken();
   const params = vehicleType ? `?vehicleType=${vehicleType}` : "";
-  const response = await fetch(`${API_BASE_URL}/customer/additional-services${params}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const response = await fetch(
+    `${API_BASE_URL}/customer/additional-services${params}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
   if (!response.ok) throw new Error("Failed to load additional services.");
   return response.json();
 }
@@ -37,6 +40,24 @@ export async function submitServiceRequest(formData) {
   });
   if (!response.ok) {
     let message = "Failed to submit service request.";
+    try {
+      const payload = await response.json();
+      message = payload?.message || payload?.error || message;
+    } catch {
+      // fallback
+    }
+    throw new Error(message);
+  }
+  return response.json();
+}
+
+export async function getCustomerServiceRequests() {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/customer/service-requests`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    let message = "Failed to load your service requests.";
     try {
       const payload = await response.json();
       message = payload?.message || payload?.error || message;

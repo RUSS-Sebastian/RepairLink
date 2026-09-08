@@ -1,5 +1,6 @@
 package com.repairlink.backend.serviceRequest.controller;
 
+import com.repairlink.backend.serviceRequest.dto.CustomerServiceRequestDetailResponse;
 import com.repairlink.backend.serviceRequest.dto.ServiceRequestResponse;
 import com.repairlink.backend.serviceRequest.entity.HandoverMethod;
 import com.repairlink.backend.serviceRequest.service.ServiceRequestService;
@@ -22,6 +23,12 @@ public class CustomerServiceRequestController {
 
     public CustomerServiceRequestController(ServiceRequestService serviceRequestService) {
         this.serviceRequestService = serviceRequestService;
+    }
+
+    @GetMapping
+    public ResponseEntity<List<CustomerServiceRequestDetailResponse>> list(Authentication authentication) {
+        UUID customerId = UUID.fromString(authentication.getName());
+        return ResponseEntity.ok(serviceRequestService.getCustomerServiceRequests(customerId));
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

@@ -5,6 +5,7 @@ import com.repairlink.backend.additionalWork.entity.AdditionalServiceStatus;
 import com.repairlink.backend.additionalWork.repository.AdditionalServiceRepository;
 import com.repairlink.backend.security.auth.entity.UserAccount;
 import com.repairlink.backend.security.auth.repository.UserAccountRepository;
+import com.repairlink.backend.serviceRequest.dto.CustomerServiceRequestDetailResponse;
 import com.repairlink.backend.serviceRequest.dto.ServiceRequestResponse;
 import com.repairlink.backend.serviceRequest.entity.*;
 import com.repairlink.backend.serviceRequest.repository.ServiceRequestRepository;
@@ -145,5 +146,61 @@ public class ServiceRequestService {
                 serviceNames,
                 saved.getCreatedAt()
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<CustomerServiceRequestDetailResponse> getCustomerServiceRequests(UUID customerId) {
+        List<ServiceRequest> requests = requestRepository.findByCustomerUserIdOrderByCreatedAtDesc(customerId);
+
+        return requests.stream().map(req -> {
+            Vehicle v = req.getVehicle();
+            CustomerServiceRequestDetailResponse.VehicleSummaryDto vehicleDto =
+                    new CustomerServiceRequestDetailResponse.VehicleSummaryDto(
+                            v.getVehicleId(),
+                            v.getNickname(),
+                            v.getMake(),
+                            v.getModel(),
+                            v.getYear(),
+                            v.getLicensePlate(),
+                            v.getVehicleType() != null ? v.getVehicleType().name() : null
+                    );
+
+            List<CustomerServiceRequestDetailResponse.ServiceItemDto> serviceDtos =
+                    req.getAdditionalServices().stream()
+                            .map(s -> new CustomerServiceRequestDetailResponse.ServiceItemDto(
+                                    s.getAdditionalServiceId(),
+                                    s.getName(),
+                                    s.getPrice()
+                            ))
+                            .sorted(Comparator.comparing(CustomerServiceRequestDetailResponse.ServiceItemDto::name))
+                            .toList();
+
+            List<CustomerServiceRequestDetailResponse.PhotoItemDto> photoDtos =
+                    req.getPhotos().stream()
+                            .map(p -> new CustomerServiceRequestDetailResponse.PhotoItemDto(
+                                    p.getPhotoId(),
+                                    p.getOriginalFileName(),
+                                    p.getStoredFileName(),
+                                    "/uploads/" + p.getStoredFileName(),
+                                    p.getFileSize(),
+                                    p.getContentType()
+                            ))
+                            .toList();
+
+            return new CustomerServiceRequestDetailResponse(
+                    req.getServiceRequestId(),
+                    req.getStatus().name(),
+                    vehicleDto,
+                    req.getProblemDescription(),
+                    req.getPreferredDate(),
+                    req.getPreferredTimeSlot(),
+                    req.getHandoverMethod().name(),
+                    req.getPickupLocation(),
+                    serviceDtos,
+                    photoDtos,
+                    req.getCreatedAt(),
+                    req.getUpdatedAt()
+            );
+        }).toList();
     }
 }

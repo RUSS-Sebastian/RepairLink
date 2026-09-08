@@ -9,6 +9,7 @@ import VehicleDetailsPage from "../pages/customer/VehicleDetailsPage";
 
 import CustomerDashboardPage from "../pages/customer/CustomerDashboardPage";
 import ServiceRequestPage from "../pages/customer/ServiceRequestPage";
+import ActiveServicePage from "../pages/customer/ActiveServicePage";
 import ProfilePage from "../pages/customer/ProfilePage";
 import PartsPage from "../pages/admin/PartsPage";
 import SchedulePage from "../pages/admin/SchedulePage";
@@ -99,7 +100,7 @@ function AppRoutes() {
         path={ROUTES.ACTIVE_SERVICE}
         element={
           <ProtectedCustomerRoute>
-            <PagePlaceholder title="Active Service" />
+            <ActiveServicePage />
           </ProtectedCustomerRoute>
         }
       />
