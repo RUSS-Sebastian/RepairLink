@@ -45,7 +45,6 @@ const adminNavigationItems = [
   { label: "Scheduling", path: ROUTES.ADMIN_SCHEDULING, icon: CalendarDays },
   { label: "Loyalty", path: ROUTES.ADMIN_LOYALTY, icon: CreditCard },
   { label: "Notifications", path: ROUTES.ADMIN_NOTIFICATIONS, icon: Bell },
-  { label: "Audit Log", path: ROUTES.ADMIN_AUDIT_LOG, icon: History },
   { label: "Admin Profile", path: ROUTES.ADMIN_PROFILE, icon: User },
 ];
 

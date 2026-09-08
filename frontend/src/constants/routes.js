@@ -23,7 +23,6 @@ export const ROUTES = {
   ADMIN_SCHEDULING_NEW: "/admin/scheduling/new",
   ADMIN_LOYALTY: "/admin/loyalty",
   ADMIN_NOTIFICATIONS: "/admin/notifications",
-  ADMIN_AUDIT_LOG: "/admin/audit-log",
   ADMIN_PROFILE: "/admin/profile",
 };
 

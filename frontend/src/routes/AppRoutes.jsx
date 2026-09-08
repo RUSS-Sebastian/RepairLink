@@ -14,6 +14,8 @@ import PartsPage from "../pages/admin/PartsPage";
 import SchedulePage from "../pages/admin/SchedulePage";
 import AdditionalServicesPage from "../pages/admin/AdditionalServicesPage";
 import AdminProfilePage from "../pages/admin/AdminProfilePage";
+import LoyaltyPage from "../pages/admin/LoyaltyPage";
+import AdminDashboardPage from "../pages/admin/AdminDashboardPage";
 import AppLayout from "../layouts/AppLayout";
 import MainLayout from "../layouts/MainLayout";
 
@@ -214,7 +216,7 @@ function AppRoutes() {
         path={ROUTES.ADMIN_LOYALTY}
         element={
           <ProtectedAdminRoute>
-            <PagePlaceholder title="Loyalty" />
+            <LoyaltyPage />
           </ProtectedAdminRoute>
         }
       />
@@ -224,15 +226,6 @@ function AppRoutes() {
         element={
           <ProtectedAdminRoute>
             <PagePlaceholder title="Notifications" />
-          </ProtectedAdminRoute>
-        }
-      />
-
-      <Route
-        path={ROUTES.ADMIN_AUDIT_LOG}
-        element={
-          <ProtectedAdminRoute>
-            <PagePlaceholder title="Audit Log" />
           </ProtectedAdminRoute>
         }
       />
@@ -316,22 +309,6 @@ function DashboardPage() {
       </p>
       <p className="mt-4 text-xl text-slate-600">
         Welcome to your RepairLink dashboard.
-      </p>
-    </div>
-  );
-}
-
-function AdminDashboardPage() {
-  const session = getStoredAuthSession();
-  const username = session.user?.fullName || "Admin";
-
-  return (
-    <div className="flex h-full flex-col justify-center">
-      <p className="text-4xl font-bold tracking-tight text-slate-900">
-        Hello, {username}
-      </p>
-      <p className="mt-4 text-xl text-slate-600">
-        Welcome to the admin console dashboard.
       </p>
     </div>
   );
