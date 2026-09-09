@@ -81,5 +81,13 @@ public class AdminScheduleController {
     ) {
         return ResponseEntity.ok(scheduleService.simulateSchedule(request));
     }
+
+    @GetMapping("/{id}/daily-slots")
+    public ResponseEntity<AdminDailySlotsResponse> getDailySlots(
+            @PathVariable UUID id,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
+    ) {
+        return ResponseEntity.ok(scheduleService.getAdminDailySlots(id, date));
+    }
 }
 

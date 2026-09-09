@@ -86,3 +86,10 @@ export function getDailySlots(date) {
   const params = new URLSearchParams({ date });
   return request(`/schedule/slots?${params.toString()}`);
 }
+
+export function getAdminDailySlots(configId, date) {
+  const params = new URLSearchParams({ date });
+  return request(
+    `/admin/schedule-configurations/${configId}/daily-slots?${params.toString()}`,
+  );
+}

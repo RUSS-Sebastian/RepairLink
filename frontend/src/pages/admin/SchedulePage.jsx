@@ -25,6 +25,7 @@ import {
   addBlockedDate,
   createScheduleConfiguration,
   deleteScheduleConfiguration,
+  getAdminDailySlots,
   getScheduleConfiguration,
   listScheduleConfigurations,
   removeBlockedDate,
@@ -156,8 +157,13 @@ function StatusPill({ status }) {
     COMPLETED: "border-slate-200 bg-slate-100 text-slate-600",
     UPCOMING: "border-blue-200 bg-blue-50 text-blue-700",
     Closed: "border-slate-200 bg-slate-100 text-slate-500",
-    Available: "bg-emerald-50 text-emerald-700",
-    Break: "bg-amber-50 text-amber-700",
+    CLOSED: "border-slate-200 bg-slate-100 text-slate-500",
+    Available: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    AVAILABLE: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    Unavailable: "border-rose-200 bg-rose-50 text-rose-700",
+    UNAVAILABLE: "border-rose-200 bg-rose-50 text-rose-700",
+    Break: "border-amber-200 bg-amber-50 text-amber-700",
+    BREAK: "border-amber-200 bg-amber-50 text-amber-700",
   };
   const normalized = status ? status.toUpperCase() : "UPCOMING";
   const label =
@@ -167,7 +173,15 @@ function StatusPill({ status }) {
         ? "Completed"
         : normalized === "UPCOMING"
           ? "Upcoming"
-          : status;
+          : normalized === "AVAILABLE"
+            ? "Available"
+            : normalized === "UNAVAILABLE"
+              ? "Unavailable"
+              : normalized === "BREAK"
+                ? "Break"
+                : normalized === "CLOSED"
+                  ? "Closed"
+                  : status;
   return (
     <span
       className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${styles[normalized] || styles[status] || styles.UPCOMING}`}
@@ -583,6 +597,8 @@ function ScheduleDetail({ configurationId, navigate }) {
   const [newBlockReason, setNewBlockReason] = useState("");
   const [isAddingBlock, setIsAddingBlock] = useState(false);
   const [month, setMonth] = useState(new Date());
+  const [dailySlotsData, setDailySlotsData] = useState(null);
+  const [slotsLoading, setSlotsLoading] = useState(false);
 
   const newBlockDateConflict = useMemo(() => {
     if (!newBlockDate || !configuration) return null;
@@ -626,6 +642,32 @@ function ScheduleDetail({ configurationId, navigate }) {
       loadDetail();
     }
   }, [configurationId]);
+
+  useEffect(() => {
+    if (!configuration?.configurationId || !selectedDate) return;
+    let isMounted = true;
+    setSlotsLoading(true);
+    getAdminDailySlots(configuration.configurationId, selectedDate)
+      .then((data) => {
+        if (isMounted) {
+          setDailySlotsData(data);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load daily slots:", err);
+        if (isMounted) {
+          setDailySlotsData(null);
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setSlotsLoading(false);
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [configuration?.configurationId, selectedDate]);
 
   if (loading) {
     return (
@@ -674,8 +716,22 @@ function ScheduleDetail({ configurationId, navigate }) {
   const blocked = (configuration.blockedDates || []).find(
     (item) => item.blockedDate === selectedDate,
   );
-  const slots =
+  const fallbackSlots =
     blocked || !isOperatingDay ? [] : getSlots(configuration, selectedDay);
+  const adminSlots = dailySlotsData?.slots
+    ? dailySlotsData.slots
+    : fallbackSlots.map((s) => ({
+        ...s,
+        totalCapacity: configuration.slotCapacity || 1,
+        bookedCapacity: 0,
+        remainingCapacity: configuration.slotCapacity || 1,
+        status: s.isBreak ? "BREAK" : "AVAILABLE",
+      }));
+  const isDateBlocked = dailySlotsData
+    ? dailySlotsData.isBlocked
+    : Boolean(blocked);
+  const dateBlockedReason = dailySlotsData?.blockedReason || blocked?.reason;
+  const isDateOpen = dailySlotsData ? dailySlotsData.isOpen : isOperatingDay;
   const monthDays = getMonthDays(month);
 
   const handleRemoveBlock = async (blockedDateId) => {
@@ -887,43 +943,114 @@ function ScheduleDetail({ configurationId, navigate }) {
                 {formatDate(selectedDate)}
               </h2>
             </div>
-            {blocked ? (
+            {isDateBlocked ? (
               <div className="flex items-center gap-2 rounded-lg bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">
                 <Ban size={14} />
-                Blocked · {blocked.reason}
+                Blocked · {dateBlockedReason}
               </div>
-            ) : !isOperatingDay ? (
+            ) : !isDateOpen ? (
               <StatusPill status="Closed" />
             ) : (
               <span className="text-sm font-semibold text-slate-500">
-                {selectedDay} · {slots.filter((s) => !s.isBreak).length}{" "}
+                {selectedDay} ·{" "}
+                {
+                  adminSlots.filter(
+                    (s) => !s.isBreak && s.status === "AVAILABLE",
+                  ).length
+                }{" "}
                 available slots
               </span>
             )}
           </div>
 
-          {blocked || !isOperatingDay ? (
+          {isDateBlocked || !isDateOpen ? (
             <div className="flex min-h-64 flex-col items-center justify-center text-center">
               <LockKeyhole size={25} className="text-slate-300" />
               <p className="mt-3 font-bold text-slate-700">
-                {blocked ? "This date is blocked" : "The workshop is closed"}
+                {isDateBlocked
+                  ? "This date is blocked"
+                  : "The workshop is closed"}
               </p>
               <p className="mt-1 max-w-sm text-sm text-slate-500">
-                Choose another date within this configuration window to inspect
-                its operating slots.
+                {dateBlockedReason ||
+                  "Choose another date within this configuration window to inspect its operating slots."}
               </p>
+            </div>
+          ) : slotsLoading ? (
+            <div className="flex min-h-64 items-center justify-center gap-2 text-sm text-slate-400">
+              <LoaderCircle size={20} className="animate-spin text-[#0261F3]" />
+              Loading daily slots...
             </div>
           ) : (
             <div className="mt-5 space-y-2">
-              {slots.map((slot) => (
+              {adminSlots.map((slot) => (
                 <div
                   key={slot.label}
-                  className="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3"
+                  className={`flex items-center justify-between rounded-xl border px-4 py-3 transition ${
+                    slot.isBreak
+                      ? "border-amber-100 bg-amber-50/40"
+                      : slot.status === "UNAVAILABLE"
+                        ? "border-rose-100 bg-rose-50/20"
+                        : "border-slate-100 bg-white"
+                  }`}
                 >
-                  <span className="text-sm font-bold text-slate-700">
-                    {slot.label}
-                  </span>
-                  <StatusPill status={slot.isBreak ? "Break" : "Available"} />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-slate-800">
+                        {slot.label}
+                      </span>
+                      {slot.isBreak && (
+                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+                          Break
+                        </span>
+                      )}
+                    </div>
+                    {!slot.isBreak && (
+                      <div className="mt-1 flex items-center gap-2 text-xs font-medium text-slate-500">
+                        <span>
+                          Capacity:{" "}
+                          <strong className="text-slate-700">
+                            {slot.totalCapacity}
+                          </strong>
+                        </span>
+                        <span>·</span>
+                        <span>
+                          Booked:{" "}
+                          <strong
+                            className={
+                              slot.bookedCapacity > 0
+                                ? "font-bold text-blue-600"
+                                : "text-slate-700"
+                            }
+                          >
+                            {slot.bookedCapacity}
+                          </strong>
+                        </span>
+                        <span>·</span>
+                        <span>
+                          Remaining:{" "}
+                          <strong
+                            className={
+                              slot.remainingCapacity === 0
+                                ? "font-bold text-rose-600"
+                                : "font-bold text-emerald-600"
+                            }
+                          >
+                            {slot.remainingCapacity}
+                          </strong>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <StatusPill
+                    status={
+                      slot.isBreak
+                        ? "Break"
+                        : slot.status === "UNAVAILABLE"
+                          ? "Unavailable"
+                          : "Available"
+                    }
+                  />
                 </div>
               ))}
             </div>

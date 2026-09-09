@@ -717,5 +717,110 @@ public class ScheduleService {
     public void releaseHold(UUID customerId) {
         slotHoldRepository.releaseActiveHoldsByCustomerId(customerId, Instant.now());
     }
+
+    @Transactional(readOnly = true)
+    public AdminDailySlotsResponse getAdminDailySlots(UUID configurationId, LocalDate date) {
+        ScheduleConfiguration config = configurationRepository.findById(configurationId)
+                .orElseThrow(() -> new ScheduleNotFoundException("Schedule configuration not found: " + configurationId));
+
+        String dayOfWeek = date.getDayOfWeek().name();
+        int totalCapacity = (config.getSlotCapacity() != null && config.getSlotCapacity() > 0) ? config.getSlotCapacity() : 1;
+
+        if (date.isBefore(config.getStartDate()) || date.isAfter(config.getEndDate())) {
+            return new AdminDailySlotsResponse(
+                    date,
+                    dayOfWeek,
+                    false,
+                    false,
+                    "Date is outside configuration window (" + config.getStartDate() + " to " + config.getEndDate() + ").",
+                    config.getSlotDurationMinutes(),
+                    totalCapacity,
+                    Collections.emptyList()
+            );
+        }
+
+        if (config.getOperatingDays() == null || !config.getOperatingDays().contains(dayOfWeek)) {
+            return new AdminDailySlotsResponse(
+                    date,
+                    dayOfWeek,
+                    false,
+                    false,
+                    "Workshop is closed on " + dayOfWeek + "s.",
+                    config.getSlotDurationMinutes(),
+                    totalCapacity,
+                    Collections.emptyList()
+            );
+        }
+
+        Optional<ScheduleBlockedDate> blocked = config.getBlockedDates().stream()
+                .filter(b -> b.getBlockedDate().equals(date))
+                .findFirst();
+
+        if (blocked.isPresent()) {
+            return new AdminDailySlotsResponse(
+                    date,
+                    dayOfWeek,
+                    false,
+                    true,
+                    blocked.get().getReason(),
+                    config.getSlotDurationMinutes(),
+                    totalCapacity,
+                    Collections.emptyList()
+            );
+        }
+
+        List<ScheduleBreakDto> dayBreaks = config.getBreaks().stream()
+                .filter(b -> b.getDayOfWeek().equalsIgnoreCase(dayOfWeek))
+                .map(b -> new ScheduleBreakDto(b.getBreakId(), b.getDayOfWeek(), b.getStartTime(), b.getEndTime(), b.getLabel()))
+                .toList();
+
+        List<SlotDto> baseSlots = generateSlots(config.getOpeningTime(), config.getClosingTime(), config.getSlotDurationMinutes(), dayBreaks);
+
+        Map<String, Long> bookingCounts = new HashMap<>();
+        for (Object[] row : serviceRequestRepository.countActiveBookingsByDateGroupByTimeSlot(date)) {
+            String slot = (String) row[0];
+            Long count = (Long) row[1];
+            bookingCounts.put(slot, count);
+        }
+
+        List<AdminSlotDto> adminSlots = baseSlots.stream().map(slot -> {
+            if (slot.isBreak()) {
+                return new AdminSlotDto(
+                        slot.startTime(),
+                        slot.endTime(),
+                        slot.label(),
+                        true,
+                        0,
+                        0,
+                        0,
+                        "BREAK"
+                );
+            }
+            int booked = bookingCounts.getOrDefault(slot.label(), 0L).intValue();
+            int remaining = Math.max(0, totalCapacity - booked);
+            String status = remaining == 0 ? "UNAVAILABLE" : "AVAILABLE";
+            return new AdminSlotDto(
+                    slot.startTime(),
+                    slot.endTime(),
+                    slot.label(),
+                    false,
+                    totalCapacity,
+                    booked,
+                    remaining,
+                    status
+            );
+        }).toList();
+
+        return new AdminDailySlotsResponse(
+                date,
+                dayOfWeek,
+                true,
+                false,
+                null,
+                config.getSlotDurationMinutes(),
+                totalCapacity,
+                adminSlots
+        );
+    }
 }
 
