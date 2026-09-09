@@ -61,6 +61,12 @@ public class ServiceRequest {
     )
     private Set<AdditionalService> additionalServices = new HashSet<>();
 
+    @Column(name = "cancellation_reason", columnDefinition = "TEXT")
+    private String cancellationReason;
+
+    @Column(name = "cancelled_by", length = 50)
+    private String cancelledBy;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -121,6 +127,13 @@ public class ServiceRequest {
     public Set<AdditionalService> getAdditionalServices() { return additionalServices; }
     public void setAdditionalServices(Set<AdditionalService> additionalServices) { this.additionalServices = additionalServices; }
 
+    public String getCancellationReason() { return cancellationReason; }
+    public void setCancellationReason(String cancellationReason) { this.cancellationReason = cancellationReason; }
+
+    public String getCancelledBy() { return cancelledBy; }
+    public void setCancelledBy(String cancelledBy) { this.cancelledBy = cancelledBy; }
+
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 }

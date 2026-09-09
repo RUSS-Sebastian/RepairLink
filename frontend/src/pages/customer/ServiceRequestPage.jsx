@@ -46,6 +46,7 @@ import {
   getAdditionalServices,
   submitServiceRequest,
   getActiveVehicleIds,
+  getActiveVehicles,
   holdSlot,
   releaseSlotHold,
 } from "../../features/serviceRequests/serviceRequestApi";
@@ -76,12 +77,25 @@ function ServiceRequestPage() {
   const autoAppliedRef = useRef(false);
 
   useEffect(() => {
-    getActiveVehicleIds()
-      .then((ids) => {
-        const idStrings = (ids || []).map((x) => String(x).toLowerCase());
-        dispatch({ type: "SET_ACTIVE_VEHICLE_IDS", ids: idStrings });
+    getActiveVehicles()
+      .then((list) => {
+        const ids = [];
+        const map = {};
+        (list || []).forEach((item) => {
+          const vid = String(item.vehicleId || item).toLowerCase();
+          ids.push(vid);
+          map[vid] = item;
+        });
+        dispatch({ type: "SET_ACTIVE_VEHICLES", ids, map });
       })
-      .catch(() => {});
+      .catch(() => {
+        getActiveVehicleIds()
+          .then((ids) => {
+            const idStrings = (ids || []).map((x) => String(x).toLowerCase());
+            dispatch({ type: "SET_ACTIVE_VEHICLE_IDS", ids: idStrings });
+          })
+          .catch(() => {});
+      });
   }, []);
 
   useEffect(() => {
@@ -98,9 +112,14 @@ function ServiceRequestPage() {
 
       if (isBlocked && targetVehicle) {
         autoAppliedRef.current = true;
-        setActiveVehicleWarning(
-          `"${targetVehicle.nickname}" already has an active service request awaiting workshop review. You cannot create another request for this vehicle until the current one is cancelled or resolved.`,
-        );
+        const activeInfo = state.activeVehiclesMap?.[String(preselectedVehicleId).toLowerCase()];
+        const isAppointment = activeInfo?.status === "APPOINTMENT_SCHEDULED";
+        setActiveVehicleWarning({
+          message: isAppointment
+            ? `"${targetVehicle.nickname}" already has a pending appointment with this car. You cannot create another request for this vehicle until the scheduled appointment is completed or cancelled.`
+            : `"${targetVehicle.nickname}" already has a pending service request with this car awaiting workshop review. You cannot create another request for this vehicle until the current one is cancelled or resolved.`,
+          isAppointment,
+        });
         dispatch({ type: "SET_VEHICLES", vehicles });
         dispatch({ type: "UPDATE", field: "vehicleId", value: "" });
         dispatch({ type: "GO_BACK", step: 0 });
@@ -588,29 +607,37 @@ function VehicleStep({
   }
   return (
     <div className="space-y-4">
-      {activeVehicleWarning && (
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs font-semibold text-amber-800">
-          <div className="flex items-center gap-2.5">
-            <AlertCircle size={18} className="shrink-0 text-amber-600" />
-            <span>{activeVehicleWarning}</span>
+      {activeVehicleWarning && (() => {
+        const isApt = typeof activeVehicleWarning === "object" ? activeVehicleWarning.isAppointment : false;
+        const msg = typeof activeVehicleWarning === "object" ? activeVehicleWarning.message : activeVehicleWarning;
+        return (
+          <div className={`flex items-center justify-between gap-3 rounded-2xl border p-4 text-xs font-semibold ${
+            isApt ? "border-blue-200 bg-blue-50 text-blue-900" : "border-amber-200 bg-amber-50 text-amber-800"
+          }`}>
+            <div className="flex items-center gap-2.5">
+              <AlertCircle size={18} className={`shrink-0 ${isApt ? "text-blue-600" : "text-amber-600"}`} />
+              <span>{msg}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link
+                to={isApt ? ROUTES.APPOINTMENTS : ROUTES.ACTIVE_SERVICE}
+                className={`shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold text-white transition ${
+                  isApt ? "bg-[#0261F3] hover:bg-blue-700" : "bg-amber-600 hover:bg-amber-700"
+                }`}
+              >
+                {isApt ? "View Appointment" : "View Active Service"}
+              </Link>
+              <button
+                type="button"
+                onClick={onClearWarning}
+                className="rounded-lg p-1 text-slate-500 hover:bg-slate-100"
+              >
+                <X size={14} />
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Link
-              to={ROUTES.ACTIVE_SERVICE}
-              className="shrink-0 rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-amber-700"
-            >
-              View Active Service
-            </Link>
-            <button
-              type="button"
-              onClick={onClearWarning}
-              className="rounded-lg p-1 text-amber-600 hover:bg-amber-100"
-            >
-              <X size={14} />
-            </button>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       <div className="grid gap-3 sm:grid-cols-2">
         {state.vehicles.map((v) => {
@@ -619,15 +646,26 @@ function VehicleStep({
           );
 
           if (isBlocked) {
+            const activeInfo = state.activeVehiclesMap?.[String(v.id).toLowerCase()];
+            const isAppointment = activeInfo?.status === "APPOINTMENT_SCHEDULED";
+
             return (
               <div
                 key={v.id}
-                className="group relative flex flex-col justify-between rounded-2xl border border-amber-200 bg-amber-50/40 p-4 text-left shadow-sm"
+                className={`group relative flex flex-col justify-between rounded-2xl border p-4 text-left shadow-sm ${
+                  isAppointment
+                    ? "border-blue-200 bg-blue-50/40"
+                    : "border-amber-200 bg-amber-50/40"
+                }`}
               >
                 <div>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-3">
-                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+                      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+                        isAppointment
+                          ? "bg-blue-100 text-[#0261F3]"
+                          : "bg-amber-100 text-amber-600"
+                      }`}>
                         <CarFront size={20} />
                       </span>
                       <div className="min-w-0">
@@ -640,22 +678,32 @@ function VehicleStep({
                       </div>
                     </div>
 
-                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
-                      <Clock3 size={11} />
-                      Active Request
+                    <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                      isAppointment
+                        ? "bg-blue-100 text-[#0261F3]"
+                        : "bg-amber-100 text-amber-800"
+                    }`}>
+                      {isAppointment ? <CalendarDays size={11} /> : <Clock3 size={11} />}
+                      {isAppointment ? "Pending Appointment" : "Active Request"}
                     </span>
                   </div>
                 </div>
 
-                <div className="mt-3 flex items-center justify-between border-t border-amber-200/60 pt-2.5 text-xs">
-                  <span className="text-[11px] text-amber-700">
-                    Already has a pending service request
+                <div className={`mt-3 flex items-center justify-between border-t pt-2.5 text-xs ${
+                  isAppointment ? "border-blue-200/60" : "border-amber-200/60"
+                }`}>
+                  <span className={`text-[11px] font-medium ${
+                    isAppointment ? "text-blue-800" : "text-amber-700"
+                  }`}>
+                    {isAppointment
+                      ? "Already has a pending appointment with this car"
+                      : "Already has a pending service request with this car"}
                   </span>
                   <Link
-                    to={ROUTES.ACTIVE_SERVICE}
+                    to={isAppointment ? ROUTES.APPOINTMENTS : ROUTES.ACTIVE_SERVICE}
                     className="font-bold text-[#0261F3] hover:underline"
                   >
-                    View Request
+                    {isAppointment ? "View Appointment" : "View Request"}
                   </Link>
                 </div>
               </div>

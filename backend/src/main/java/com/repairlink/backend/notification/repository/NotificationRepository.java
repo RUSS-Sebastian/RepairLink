@@ -20,4 +20,14 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
     @Modifying
     @Query("UPDATE Notification n SET n.read = true, n.readAt = :readAt WHERE n.recipientRole = :role AND n.read = false")
     int markAllAsReadForRole(String role, Instant readAt);
+
+    List<Notification> findByRecipientUser_UserIdOrderByCreatedAtDesc(UUID userId);
+
+    long countByRecipientUser_UserIdAndReadFalse(UUID userId);
+
+    @Modifying
+    @Query("UPDATE Notification n SET n.read = true, n.readAt = :readAt WHERE n.recipientUser.userId = :userId AND n.read = false")
+    int markAllAsReadForUser(UUID userId, Instant readAt);
+
+    java.util.Optional<Notification> findByNotificationIdAndRecipientUser_UserId(UUID notificationId, UUID userId);
 }

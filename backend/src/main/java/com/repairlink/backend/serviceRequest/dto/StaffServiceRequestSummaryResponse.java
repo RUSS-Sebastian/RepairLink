@@ -20,6 +20,8 @@ public record StaffServiceRequestSummaryResponse(
         String handoverMethod,
         int photoCount,
         List<String> additionalServiceNames,
-        Instant createdAt
+        Instant createdAt,
+        String cancellationReason,
+        String cancelledBy
 ) {
 }

@@ -1,6 +1,7 @@
 package com.repairlink.backend.loyalty.dto;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 public record CustomerLoyaltyResponse(
         long totalPoints,
@@ -11,6 +12,7 @@ public record CustomerLoyaltyResponse(
         long rankMinimumPoints,
         long rankMaximumPoints,
         String nextRankName,
-        long pointsToNextRank
+        long pointsToNextRank,
+        List<LoyaltyPointTransactionDto> pointHistory
 ) {
 }

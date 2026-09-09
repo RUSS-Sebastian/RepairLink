@@ -21,7 +21,9 @@ public record StaffServiceRequestDetailResponse(
         List<PhotoItemDto> photos,
         ServiceLifecycleDto lifecycle,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        String cancellationReason,
+        String cancelledBy
 ) {
     public record CustomerProfileDto(
             UUID userId,

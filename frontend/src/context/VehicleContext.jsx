@@ -1,10 +1,11 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import {
   createVehicle as createVehicleApi,
   deleteVehicle as deleteVehicleApi,
   listVehicles,
   updateVehicle as updateVehicleApi,
 } from "../features/vehicles/vehicleApi";
+import { getStoredAuthSession } from "../utils/auth";
 
 const VehicleContext = createContext(null);
 
@@ -13,34 +14,38 @@ export function VehicleProvider({ children }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const loadVehicles = useCallback(async () => {
+    const session = getStoredAuthSession();
+    if (!session.token || session.user?.role !== "CUSTOMER") {
+      setVehicles([]);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await listVehicles();
+      setVehicles(response.map(normalizeVehicle));
+      setError("");
+    } catch (requestError) {
+      setError(requestError.message || "Unable to load vehicles.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    let isMounted = true;
-
-    const loadVehicles = async () => {
-      try {
-        const response = await listVehicles();
-
-        if (isMounted) {
-          setVehicles(response.map(normalizeVehicle));
-          setError("");
-        }
-      } catch (requestError) {
-        if (isMounted) {
-          setError(requestError.message || "Unable to load vehicles.");
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
     loadVehicles();
 
-    return () => {
-      isMounted = false;
+    const handleAuthUpdate = () => {
+      loadVehicles();
     };
-  }, []);
+
+    window.addEventListener("repairlink_auth_updated", handleAuthUpdate);
+    return () => {
+      window.removeEventListener("repairlink_auth_updated", handleAuthUpdate);
+    };
+  }, [loadVehicles]);
 
   const addVehicle = async (vehicle) => {
     const savedVehicle = await createVehicleApi(vehicle);
@@ -82,6 +87,7 @@ export function VehicleProvider({ children }) {
         updateVehicle,
         deleteVehicle,
         getVehicle,
+        reloadVehicles: loadVehicles,
       }}
     >
       {children}

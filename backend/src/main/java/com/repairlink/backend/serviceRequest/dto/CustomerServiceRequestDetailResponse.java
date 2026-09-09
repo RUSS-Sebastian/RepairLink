@@ -19,7 +19,9 @@ public record CustomerServiceRequestDetailResponse(
         List<ServiceItemDto> additionalServices,
         List<PhotoItemDto> photos,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        String cancellationReason,
+        String cancelledBy
 ) {
     public record VehicleSummaryDto(
             UUID id,

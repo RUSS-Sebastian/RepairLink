@@ -37,6 +37,12 @@ public class CustomerServiceRequestController {
         return ResponseEntity.ok(serviceRequestService.getActiveVehicleIdsForCustomer(customerId));
     }
 
+    @GetMapping("/active-vehicles")
+    public ResponseEntity<List<com.repairlink.backend.serviceRequest.dto.ActiveVehicleStatusDto>> getActiveVehicles(Authentication authentication) {
+        UUID customerId = UUID.fromString(authentication.getName());
+        return ResponseEntity.ok(serviceRequestService.getActiveVehiclesForCustomer(customerId));
+    }
+
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ServiceRequestResponse> create(
             Authentication authentication,

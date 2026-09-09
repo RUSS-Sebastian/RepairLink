@@ -11,15 +11,12 @@ import {
   Pencil,
   Phone,
   Save,
-  Sparkles,
-  TrendingUp,
   User,
   X,
 } from "lucide-react";
 
 import Button from "../../components/common/Button";
 import { updateStoredAuthUser } from "../../utils/auth";
-import { getCustomerLoyalty } from "../../features/loyalty/customerLoyaltyApi";
 import {
   changeCustomerPassword,
   getCustomerProfile,
@@ -36,18 +33,6 @@ const EMPTY_PROFILE = {
   phone: "",
   memberSince: "",
   vehicleCount: 0,
-};
-
-const EMPTY_LOYALTY = {
-  totalPoints: 0,
-  lifetimePoints: 0,
-  servicesCompleted: 0,
-  rankName: "Bronze",
-  discountPercentage: 0,
-  rankMinimumPoints: 0,
-  rankMaximumPoints: 0,
-  nextRankName: null,
-  pointsToNextRank: 0,
 };
 
 function ProfilePage() {
@@ -69,9 +54,6 @@ function ProfilePage() {
   const [passwordSubmitError, setPasswordSubmitError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
   const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [loyalty, setLoyalty] = useState(EMPTY_LOYALTY);
-  const [loyaltyLoading, setLoyaltyLoading] = useState(true);
-  const [loyaltyError, setLoyaltyError] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -116,29 +98,8 @@ function ProfilePage() {
 
     loadProfile();
 
-    let isLoyaltyMounted = true;
-
-    getCustomerLoyalty()
-      .then((response) => {
-        if (isLoyaltyMounted) {
-          setLoyalty(response);
-          setLoyaltyError("");
-        }
-      })
-      .catch((error) => {
-        if (isLoyaltyMounted) {
-          setLoyaltyError(error.message || "Unable to load loyalty details.");
-        }
-      })
-      .finally(() => {
-        if (isLoyaltyMounted) {
-          setLoyaltyLoading(false);
-        }
-      });
-
     return () => {
       isMounted = false;
-      isLoyaltyMounted = false;
     };
   }, []);
 
@@ -384,18 +345,8 @@ function ProfilePage() {
 
               <div className="mt-2 flex flex-wrap gap-2 text-xs font-medium text-slate-600">
                 <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                  {loyaltyLoading
-                    ? "Loading membership..."
-                    : `${loyalty.rankName} Member`}
-                </span>
-                <span className="rounded-full bg-slate-100 px-2.5 py-1">
                   {profile.vehicleCount}{" "}
                   {profile.vehicleCount === 1 ? "Vehicle" : "Vehicles"}
-                </span>
-                <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                  {loyaltyLoading
-                    ? "Loading services..."
-                    : `${loyalty.servicesCompleted} Services`}
                 </span>
               </div>
             </div>
@@ -612,12 +563,6 @@ function ProfilePage() {
           </Button>
         </div>
       </div>
-
-      <LoyaltySummary
-        loyalty={loyalty}
-        loading={loyaltyLoading}
-        error={loyaltyError}
-      />
     </div>
   );
 }
@@ -669,114 +614,6 @@ function InfoRow({ icon, label, value }) {
           {label}
         </p>
         <p className="mt-1 text-sm font-medium text-slate-800">{value}</p>
-      </div>
-    </div>
-  );
-}
-
-function LoyaltySummary({ loyalty, loading, error }) {
-  const range = Math.max(
-    loyalty.rankMaximumPoints - loyalty.rankMinimumPoints + 1,
-    1,
-  );
-  const earnedInRank = Math.max(
-    loyalty.totalPoints - loyalty.rankMinimumPoints,
-    0,
-  );
-  const progress = Math.min(100, Math.round((earnedInRank / range) * 100));
-
-  return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="relative overflow-hidden bg-slate-950 p-5 text-white sm:p-6">
-        <div className="pointer-events-none absolute -right-8 -top-12 h-36 w-36 rounded-full border-[18px] border-amber-300/10" />
-        <div className="relative flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-amber-200">
-              <Sparkles size={14} /> Member rewards
-            </div>
-            <h2 className="mt-2 text-2xl font-bold">Your loyalty journey</h2>
-            <p className="mt-1 text-sm text-slate-300">
-              Earn points through every completed service.
-            </p>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-right backdrop-blur-sm">
-            <p className="text-xs text-slate-400">Current rank</p>
-            <p className="mt-1 text-lg font-bold text-amber-200">
-              {loading ? "..." : loyalty.rankName}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="p-5 sm:p-6">
-        {error && (
-          <div className="mb-5 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-            <AlertCircle size={17} className="mt-0.5 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
-            <p className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">
-              Current points
-            </p>
-            <p className="mt-3 text-2xl font-bold text-blue-700">
-              {loading ? "-" : loyalty.totalPoints.toLocaleString()}
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">
-              Lifetime points
-            </p>
-            <p className="mt-3 text-2xl font-bold text-slate-900">
-              {loading ? "-" : loyalty.lifetimePoints.toLocaleString()}
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
-            <p className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">
-              Member discount
-            </p>
-            <p className="mt-3 text-2xl font-bold text-emerald-700">
-              {loading ? "-" : `${loyalty.discountPercentage}%`}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold text-slate-800">
-                Rank progress
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                {loyalty.nextRankName
-                  ? `${loyalty.pointsToNextRank.toLocaleString()} points to ${loyalty.nextRankName}`
-                  : "You have reached the highest active rank."}
-              </p>
-            </div>
-            <TrendingUp size={19} className="text-blue-600" />
-          </div>
-          <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-slate-200">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all"
-              style={{ width: `${loading ? 0 : progress}%` }}
-            />
-          </div>
-          <div className="mt-2 flex justify-between text-[11px] font-medium text-slate-400">
-            <span>{loyalty.rankMinimumPoints.toLocaleString()} pts</span>
-            <span>{loyalty.rankMaximumPoints.toLocaleString()} pts</span>
-          </div>
-        </div>
-
-        <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4 text-sm">
-          <span className="text-slate-500">Completed services</span>
-          <span className="font-bold text-slate-900">
-            {loading ? "-" : loyalty.servicesCompleted}
-          </span>
-        </div>
       </div>
     </div>
   );

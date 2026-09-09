@@ -632,6 +632,21 @@ public class ScheduleService {
                 .orElse(ScheduleWindowResponse.empty());
     }
 
+    @Transactional(readOnly = true)
+    public ScheduleWindowResponse getStaffScheduleWindow() {
+        return configurationRepository.findFirstByStatus(ScheduleStatus.CURRENT)
+                .map(config -> new ScheduleWindowResponse(
+                        config.getName(),
+                        config.getStartDate(),
+                        config.getEndDate(),
+                        config.getOperatingDays(),
+                        config.getOpeningTime(),
+                        config.getClosingTime(),
+                        config.getSlotDurationMinutes()
+                ))
+                .orElse(ScheduleWindowResponse.empty());
+    }
+
     private static final long HOLD_DURATION_SECONDS = 50L;
 
     @Transactional

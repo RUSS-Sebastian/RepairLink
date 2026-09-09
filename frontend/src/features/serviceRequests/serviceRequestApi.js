@@ -170,3 +170,15 @@ export async function getActiveVehicleIds() {
   if (!response.ok) return [];
   return response.json();
 }
+
+export async function getActiveVehicles() {
+  const token = getToken();
+  const response = await fetch(
+    `${API_BASE_URL}/customer/service-requests/active-vehicles`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+  if (!response.ok) return [];
+  return response.json();
+}

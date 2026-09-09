@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useStaffNotifications } from "../hooks/useStaffNotifications";
+import { useCustomerNotifications } from "../hooks/useCustomerNotifications";
 import {
   Activity,
   AlertCircle,
   Bell,
   CalendarDays,
   Car,
+  CheckCircle2,
   CreditCard,
   ChevronLeft,
   ChevronRight,
@@ -93,16 +95,32 @@ function AppLayout({ children }) {
   const userRole = session.user?.role;
   const isAdmin = userRole === "ADMIN";
   const isStaff = userRole === "STAFF" || userRole === "CENTER_STAFF";
+  const isCustomer = userRole === "CUSTOMER";
 
-  const { unreadCount, latestToast, dismissToast } = useStaffNotifications(isStaff);
+  const {
+    unreadCount: staffUnreadCount,
+    latestToast: staffLatestToast,
+    dismissToast: dismissStaffToast,
+    markReferenceAsRead,
+  } = useStaffNotifications();
+
+  const {
+    unreadCount: customerUnreadCount,
+    latestToast: customerLatestToast,
+    dismissToast: dismissCustomerToast,
+  } = useCustomerNotifications();
+
+  const activeUnreadCount = isStaff ? staffUnreadCount : isCustomer ? customerUnreadCount : 0;
+  const activeToast = isStaff ? staffLatestToast : isCustomer ? customerLatestToast : null;
+  const dismissActiveToast = isStaff ? dismissStaffToast : dismissCustomerToast;
 
   useEffect(() => {
-    if (!latestToast) return;
+    if (!activeToast) return;
     const timer = setTimeout(() => {
-      dismissToast();
-    }, 7500);
+      dismissActiveToast();
+    }, 8500);
     return () => clearTimeout(timer);
-  }, [latestToast, dismissToast]);
+  }, [activeToast, dismissActiveToast]);
 
   const navigationItems = isAdmin
     ? adminNavigationItems
@@ -246,8 +264,8 @@ function AppLayout({ children }) {
                               active ? "text-[#0261F3]" : "text-slate-500"
                             }
                           />
-                          {isCollapsed && isNotificationSection && isStaff && unreadCount > 0 && (
-                            <span className="absolute -top-1.5 -right-1.5 h-2 w-2 rounded-full bg-[#0261F3]" />
+                          {isCollapsed && isNotificationSection && (isStaff || isCustomer) && activeUnreadCount > 0 && (
+                            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
                           )}
                         </div>
                         {!isCollapsed && (
@@ -261,9 +279,9 @@ function AppLayout({ children }) {
                             >
                               {label}
                             </span>
-                            {isNotificationSection && isStaff && unreadCount > 0 && (
-                              <span className="rounded-full bg-[#0261F3] px-2 py-0.5 text-[11px] font-bold text-white shadow-sm">
-                                {unreadCount}
+                            {isNotificationSection && (isStaff || isCustomer) && activeUnreadCount > 0 && (
+                              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white shadow-sm transition-all duration-200">
+                                {activeUnreadCount > 99 ? "99+" : activeUnreadCount}
                               </span>
                             )}
                           </div>
@@ -315,33 +333,58 @@ function AppLayout({ children }) {
         <div className="h-full min-h-full p-8">{children}</div>
       </main>
 
-      {/* Real-time floating toast alert for staff */}
-      {latestToast && (() => {
-        const isCancelledToast = latestToast.type === "SERVICE_REQUEST_CANCELLED";
+      {/* Real-time floating toast alert for staff and customers */}
+      {activeToast && (() => {
+        const isAlertToast =
+          activeToast.type === "SERVICE_REQUEST_CANCELLED" ||
+          activeToast.type === "SERVICE_REQUEST_REJECTED" ||
+          activeToast.type === "APPOINTMENT_CANCELLED";
+        const isConfirmedToast = activeToast.type === "APPOINTMENT_CONFIRMED";
+
         return (
           <div className="fixed bottom-6 right-6 z-50 max-w-md animate-in slide-in-from-bottom-5 duration-300">
             <div
               className={`flex items-start gap-3.5 rounded-2xl border bg-white p-4 shadow-2xl ${
-                isCancelledToast ? "border-red-200" : "border-blue-200"
+                isAlertToast
+                  ? "border-red-200"
+                  : isConfirmedToast
+                    ? "border-emerald-200"
+                    : "border-blue-200"
               }`}
             >
               <div
                 className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-                  isCancelledToast
+                  isAlertToast
                     ? "bg-red-50 text-red-600"
-                    : "bg-blue-50 text-[#0261F3]"
+                    : isConfirmedToast
+                      ? "bg-emerald-50 text-emerald-600"
+                      : "bg-blue-50 text-[#0261F3]"
                 }`}
               >
-                {isCancelledToast ? <AlertCircle size={20} /> : <Bell size={20} />}
+                {isAlertToast ? (
+                  <AlertCircle size={20} />
+                ) : isConfirmedToast ? (
+                  <CheckCircle2 size={20} />
+                ) : (
+                  <Bell size={20} />
+                )}
                 <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
                   <span
                     className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${
-                      isCancelledToast ? "bg-red-400" : "bg-blue-400"
+                      isAlertToast
+                        ? "bg-red-400"
+                        : isConfirmedToast
+                          ? "bg-emerald-400"
+                          : "bg-blue-400"
                     }`}
                   ></span>
                   <span
                     className={`relative inline-flex h-3 w-3 rounded-full ${
-                      isCancelledToast ? "bg-red-600" : "bg-[#0261F3]"
+                      isAlertToast
+                        ? "bg-red-600"
+                        : isConfirmedToast
+                          ? "bg-emerald-600"
+                          : "bg-[#0261F3]"
                     }`}
                   ></span>
                 </span>
@@ -351,40 +394,69 @@ function AppLayout({ children }) {
                 <div className="flex flex-wrap items-center gap-2">
                   <p
                     className={`text-xs font-bold uppercase tracking-wider ${
-                      isCancelledToast ? "text-red-600" : "text-[#0261F3]"
+                      isAlertToast
+                        ? "text-red-600"
+                        : isConfirmedToast
+                          ? "text-emerald-700"
+                          : "text-[#0261F3]"
                     }`}
                   >
-                    {latestToast.title || (isCancelledToast ? "Request Cancelled" : "New Service Request")}
+                    {activeToast.title ||
+                      (isAlertToast
+                        ? "Notice"
+                        : isConfirmedToast
+                          ? "Appointment Confirmed"
+                          : "Notification")}
                   </p>
-                  {latestToast.referenceCode && (
+                  {activeToast.referenceCode && (
                     <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-700">
-                      {latestToast.referenceCode}
+                      {activeToast.referenceCode}
                     </span>
                   )}
-                  {isCancelledToast && (
+                  {isAlertToast && (
                     <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-red-700">
-                      Cancelled
+                      {activeToast.type === "SERVICE_REQUEST_REJECTED"
+                        ? "Declined"
+                        : "Cancelled"}
+                    </span>
+                  )}
+                  {isConfirmedToast && (
+                    <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-emerald-700">
+                      Scheduled
                     </span>
                   )}
                 </div>
 
                 <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                  {latestToast.message}
+                  {activeToast.message}
                 </p>
 
                 <div className="mt-2.5 flex items-center gap-2">
-                  {latestToast.referenceId ? (
+                  {isStaff && activeToast.referenceId ? (
                     <Link
-                      to={`/staff/service-requests/${latestToast.referenceId}`}
-                      onClick={dismissToast}
+                      to={`/staff/service-requests/${activeToast.referenceId}`}
+                      onClick={() => {
+                        if (activeToast.referenceId) {
+                          markReferenceAsRead(activeToast.referenceId);
+                        }
+                        dismissActiveToast();
+                      }}
                       className="inline-flex items-center gap-1 rounded-lg bg-[#0261F3] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0256D6]"
                     >
                       View Request
                     </Link>
+                  ) : isCustomer && isConfirmedToast ? (
+                    <Link
+                      to={`${ROUTES.APPOINTMENTS}${activeToast.referenceId ? `?id=${activeToast.referenceId}` : ""}`}
+                      onClick={dismissActiveToast}
+                      className="inline-flex items-center gap-1 rounded-lg bg-[#0261F3] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0256D6]"
+                    >
+                      View Appointment
+                    </Link>
                   ) : (
                     <Link
-                      to={ROUTES.STAFF_NOTIFICATIONS}
-                      onClick={dismissToast}
+                      to={isStaff ? ROUTES.STAFF_NOTIFICATIONS : ROUTES.NOTIFICATIONS}
+                      onClick={dismissActiveToast}
                       className="inline-flex items-center gap-1 rounded-lg bg-[#0261F3] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0256D6]"
                     >
                       View Notifications
@@ -393,7 +465,7 @@ function AppLayout({ children }) {
 
                   <button
                     type="button"
-                    onClick={dismissToast}
+                    onClick={dismissActiveToast}
                     className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
                   >
                     Dismiss
@@ -403,7 +475,7 @@ function AppLayout({ children }) {
 
               <button
                 type="button"
-                onClick={dismissToast}
+                onClick={dismissActiveToast}
                 className="text-slate-400 transition hover:text-slate-600"
                 aria-label="Dismiss alert"
               >

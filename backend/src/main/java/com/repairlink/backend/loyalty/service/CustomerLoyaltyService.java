@@ -2,9 +2,12 @@ package com.repairlink.backend.loyalty.service;
 
 import com.repairlink.backend.common.enums.RoleCode;
 import com.repairlink.backend.loyalty.dto.CustomerLoyaltyResponse;
+import com.repairlink.backend.loyalty.dto.LoyaltyPointTransactionDto;
 import com.repairlink.backend.loyalty.entity.CustomerLoyaltyAccount;
+import com.repairlink.backend.loyalty.entity.LoyaltyPointTransaction;
 import com.repairlink.backend.loyalty.entity.LoyaltyRank;
 import com.repairlink.backend.loyalty.repository.CustomerLoyaltyAccountRepository;
+import com.repairlink.backend.loyalty.repository.LoyaltyPointTransactionRepository;
 import com.repairlink.backend.loyalty.repository.LoyaltyRankRepository;
 import com.repairlink.backend.security.auth.entity.Role;
 import com.repairlink.backend.security.auth.entity.UserAccount;
@@ -25,17 +28,20 @@ public class CustomerLoyaltyService {
     private final LoyaltyRankRepository rankRepository;
     private final UserAccountRepository userAccountRepository;
     private final UserRoleRepository userRoleRepository;
+    private final LoyaltyPointTransactionRepository transactionRepository;
 
     public CustomerLoyaltyService(
             CustomerLoyaltyAccountRepository accountRepository,
             LoyaltyRankRepository rankRepository,
             UserAccountRepository userAccountRepository,
-            UserRoleRepository userRoleRepository
+            UserRoleRepository userRoleRepository,
+            LoyaltyPointTransactionRepository transactionRepository
     ) {
         this.accountRepository = accountRepository;
         this.rankRepository = rankRepository;
         this.userAccountRepository = userAccountRepository;
         this.userRoleRepository = userRoleRepository;
+        this.transactionRepository = transactionRepository;
     }
 
     @Transactional
@@ -59,6 +65,19 @@ public class CustomerLoyaltyService {
                         .orElse(null)
         );
 
+        List<LoyaltyPointTransactionDto> pointHistory = transactionRepository
+                .findByUser_UserIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(t -> new LoyaltyPointTransactionDto(
+                        t.getTransactionId(),
+                        t.getPointsDelta(),
+                        t.getTransactionType(),
+                        t.getDescription(),
+                        t.getReferenceId(),
+                        t.getCreatedAt()
+                ))
+                .toList();
+
         return new CustomerLoyaltyResponse(
                 account.getTotalPoints(),
                 account.getLifetimePoints(),
@@ -68,8 +87,58 @@ public class CustomerLoyaltyService {
                 progress.rankMinimumPoints(),
                 progress.rankMaximumPoints(),
                 progress.nextRankName(),
-                progress.pointsToNextRank()
+                progress.pointsToNextRank(),
+                pointHistory
         );
+    }
+
+    @Transactional
+    public void deductPointsForAppointmentCancellation(
+            UUID userId,
+            long pointsToDeduct,
+            String appointmentCode,
+            UUID appointmentId
+    ) {
+        CustomerLoyaltyAccount account = accountRepository
+                .findByUserUserId(userId)
+                .orElseGet(() -> createAccount(userId));
+
+        long currentPoints = account.getTotalPoints();
+        long actualDeducted = Math.min(currentPoints, pointsToDeduct);
+        account.setTotalPoints(currentPoints - actualDeducted);
+        accountRepository.save(account);
+
+        LoyaltyPointTransaction transaction = new LoyaltyPointTransaction();
+        transaction.setUser(account.getUser());
+        transaction.setPointsDelta(-actualDeducted);
+        transaction.setTransactionType("PENALTY");
+        if (actualDeducted == pointsToDeduct) {
+            transaction.setDescription("Penalty for cancelling appointment " + appointmentCode);
+        } else if (actualDeducted > 0) {
+            transaction.setDescription("Penalty for cancelling appointment " + appointmentCode + " (" + actualDeducted + " pts deducted; balance reached 0)");
+        } else {
+            transaction.setDescription("Penalty policy applied for cancelling appointment " + appointmentCode + " (0 pts deducted; zero balance)");
+        }
+        transaction.setReferenceId(appointmentId);
+        transactionRepository.save(transaction);
+    }
+
+    @Transactional
+    public CustomerLoyaltyResponse resetLoyaltyData(UUID userId) {
+        requireCustomer(userId);
+
+        CustomerLoyaltyAccount account = accountRepository
+                .findByUserUserId(userId)
+                .orElseGet(() -> createAccount(userId));
+
+        account.setTotalPoints(0);
+        account.setLifetimePoints(0);
+        account.setServicesCompleted(0);
+        accountRepository.save(account);
+
+        transactionRepository.deleteByUser_UserId(userId);
+
+        return getCurrentCustomerLoyalty(userId);
     }
 
     private CustomerLoyaltyAccount createAccount(UUID userId) {

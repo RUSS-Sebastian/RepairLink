@@ -82,6 +82,7 @@ export function createInitialState(vehicles = [], initialVehicleId = "") {
     slotsMessage: "",
     slotHolding: false,
     activeVehicleIds: [], // array of vehicle IDs with active service requests
+    activeVehiclesMap: {}, // map of vehicleId -> { status, requestCode }
     error: "",
     pageError: "",
     submitting: false,
@@ -104,8 +105,13 @@ export function validateStep(state, step = state.step) {
   if (step === 0) {
     if (!state.vehicles.some((v) => v.id === state.vehicleId))
       return "Please select a vehicle.";
-    if (state.activeVehicleIds?.includes(state.vehicleId))
+    if (state.activeVehicleIds?.includes(state.vehicleId?.toLowerCase())) {
+      const activeInfo = state.activeVehiclesMap?.[state.vehicleId?.toLowerCase()];
+      if (activeInfo?.status === "APPOINTMENT_SCHEDULED") {
+        return "This vehicle already has a pending appointment. You cannot submit another request until the appointment is completed or cancelled.";
+      }
       return "This vehicle already has an active service request. You cannot submit another request until the current one is cancelled or rejected.";
+    }
   }
   if (step === 1 && state.problem.trim().length < 10)
     return "Please describe the problem (at least 10 characters).";
@@ -252,9 +258,15 @@ export function serviceRequestReducer(state, action) {
       };
     }
 
-    // Active vehicle ids
+    // Active vehicle ids & statuses
     case "SET_ACTIVE_VEHICLE_IDS":
       return { ...state, activeVehicleIds: action.ids || [] };
+    case "SET_ACTIVE_VEHICLES":
+      return {
+        ...state,
+        activeVehicleIds: action.ids || [],
+        activeVehiclesMap: action.map || {},
+      };
 
     // Schedule window
     case "SET_SCHEDULE_WINDOW":

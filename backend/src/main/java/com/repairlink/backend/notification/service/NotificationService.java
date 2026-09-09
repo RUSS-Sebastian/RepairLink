@@ -18,13 +18,75 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final StaffNotificationWebSocketHandler webSocketHandler;
+    private final com.repairlink.backend.notification.websocket.CustomerNotificationWebSocketHandler customerWebSocketHandler;
 
     public NotificationService(
             NotificationRepository notificationRepository,
-            StaffNotificationWebSocketHandler webSocketHandler
+            StaffNotificationWebSocketHandler webSocketHandler,
+            com.repairlink.backend.notification.websocket.CustomerNotificationWebSocketHandler customerWebSocketHandler
     ) {
         this.notificationRepository = notificationRepository;
         this.webSocketHandler = webSocketHandler;
+        this.customerWebSocketHandler = customerWebSocketHandler;
+    }
+
+    @Transactional
+    public NotificationResponse createAndSendCustomerNotification(
+            com.repairlink.backend.security.auth.entity.UserAccount customer,
+            String title,
+            String message,
+            NotificationType type,
+            UUID referenceId,
+            String referenceCode
+    ) {
+        Notification notification = new Notification();
+        notification.setRecipientRole("CUSTOMER");
+        notification.setRecipientUser(customer);
+        notification.setTitle(title);
+        notification.setMessage(message);
+        notification.setType(type);
+        notification.setReferenceId(referenceId);
+        notification.setReferenceCode(referenceCode);
+        notification.setRead(false);
+
+        Notification saved = notificationRepository.save(notification);
+        NotificationResponse response = toResponse(saved);
+
+        // Broadcast real-time over WebSocket to the customer's active sessions
+        if (customer != null && customer.getUserId() != null) {
+            customerWebSocketHandler.sendToCustomer(customer.getUserId(), response);
+        }
+
+        return response;
+    }
+
+    @Transactional(readOnly = true)
+    public NotificationListResponse getCustomerNotifications(UUID customerId) {
+        List<Notification> notifications = notificationRepository.findByRecipientUser_UserIdOrderByCreatedAtDesc(customerId);
+        long unreadCount = notificationRepository.countByRecipientUser_UserIdAndReadFalse(customerId);
+
+        List<NotificationResponse> list = notifications.stream()
+                .map(this::toResponse)
+                .toList();
+
+        return new NotificationListResponse(list, unreadCount);
+    }
+
+    @Transactional
+    public NotificationResponse markAsReadForCustomer(UUID customerId, UUID notificationId) {
+        Notification notification = notificationRepository.findByNotificationIdAndRecipientUser_UserId(notificationId, customerId)
+                .orElseThrow(() -> new IllegalArgumentException("Notification not found: " + notificationId));
+
+        notification.setRead(true);
+        notification.setReadAt(Instant.now());
+        Notification saved = notificationRepository.save(notification);
+
+        return toResponse(saved);
+    }
+
+    @Transactional
+    public void markAllAsReadForCustomer(UUID customerId) {
+        notificationRepository.markAllAsReadForUser(customerId, Instant.now());
     }
 
     @Transactional

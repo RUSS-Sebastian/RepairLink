@@ -5,6 +5,7 @@ import com.repairlink.backend.loyalty.service.CustomerLoyaltyService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -24,5 +25,11 @@ public class CustomerLoyaltyController {
     public ResponseEntity<CustomerLoyaltyResponse> current(Authentication authentication) {
         UUID userId = UUID.fromString(authentication.getName());
         return ResponseEntity.ok(service.getCurrentCustomerLoyalty(userId));
+    }
+
+    @PostMapping("/reset")
+    public ResponseEntity<CustomerLoyaltyResponse> reset(Authentication authentication) {
+        UUID userId = UUID.fromString(authentication.getName());
+        return ResponseEntity.ok(service.resetLoyaltyData(userId));
     }
 }

@@ -10,7 +10,10 @@ import VehicleDetailsPage from "../pages/customer/VehicleDetailsPage";
 import CustomerDashboardPage from "../pages/customer/CustomerDashboardPage";
 import ServiceRequestPage from "../pages/customer/ServiceRequestPage";
 import ActiveServicePage from "../pages/customer/ActiveServicePage";
+import AppointmentsPage from "../pages/customer/AppointmentsPage";
+import CustomerLoyaltyPage from "../pages/customer/CustomerLoyaltyPage";
 import ProfilePage from "../pages/customer/ProfilePage";
+import CustomerNotificationsPage from "../pages/customer/NotificationsPage";
 import PartsPage from "../pages/admin/PartsPage";
 import SchedulePage from "../pages/admin/SchedulePage";
 import AdditionalServicesPage from "../pages/admin/AdditionalServicesPage";
@@ -23,6 +26,7 @@ import StaffPlaceholderPage from "../pages/staff/StaffPlaceholderPage";
 import StaffNotificationsPage from "../pages/staff/StaffNotificationsPage";
 import StaffServiceRequestsPage from "../pages/staff/StaffServiceRequestsPage";
 import StaffServiceRequestDetailPage from "../pages/staff/StaffServiceRequestDetailPage";
+import StaffAppointmentsPage from "../pages/staff/StaffAppointmentsPage";
 import AppLayout from "../layouts/AppLayout";
 import MainLayout from "../layouts/MainLayout";
 
@@ -175,7 +179,7 @@ function AppRoutes() {
         path={ROUTES.APPOINTMENTS}
         element={
           <ProtectedCustomerRoute>
-            <PagePlaceholder title="Appointments" />
+            <AppointmentsPage />
           </ProtectedCustomerRoute>
         }
       />
@@ -193,7 +197,7 @@ function AppRoutes() {
         path={ROUTES.LOYALTY}
         element={
           <ProtectedCustomerRoute>
-            <PagePlaceholder title="Loyalty" />
+            <CustomerLoyaltyPage />
           </ProtectedCustomerRoute>
         }
       />
@@ -220,7 +224,7 @@ function AppRoutes() {
         path={ROUTES.NOTIFICATIONS}
         element={
           <ProtectedCustomerRoute>
-            <PagePlaceholder title="Notifications" />
+            <CustomerNotificationsPage />
           </ProtectedCustomerRoute>
         }
       />
@@ -389,11 +393,7 @@ function AppRoutes() {
         path={ROUTES.STAFF_APPOINTMENTS}
         element={
           <ProtectedStaffRoute>
-            <StaffPlaceholderPage
-              title="Appointments"
-              description="View center calendar, scheduled customer service slots, and technician availability."
-              icon={CalendarDays}
-            />
+            <StaffAppointmentsPage />
           </ProtectedStaffRoute>
         }
       />

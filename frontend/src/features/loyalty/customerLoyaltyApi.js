@@ -27,3 +27,32 @@ export async function getCustomerLoyalty() {
 
   return response.json();
 }
+
+export async function resetCustomerLoyalty() {
+  const token = localStorage.getItem("repairlink_auth_token");
+
+  if (!token) {
+    throw new Error("Authentication required.");
+  }
+
+  const response = await fetch(`${API_BASE_URL}/customers/loyalty/reset`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    let message = "Unable to reset loyalty details.";
+    try {
+      const payload = await response.json();
+      message = payload?.message || payload?.error || message;
+    } catch {
+      // fallback
+    }
+    throw new Error(message);
+  }
+
+  return response.json();
+}

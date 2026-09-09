@@ -24,6 +24,7 @@ const STATUS_FILTERS = [
   { id: "APPOINTMENT_SCHEDULED", label: "Scheduled" },
   { id: "COMPLETED", label: "Completed" },
   { id: "CANCELLED", label: "Cancelled" },
+  { id: "REJECTED", label: "Rejected" },
 ];
 
 export default function StaffServiceRequestsPage() {
@@ -33,21 +34,40 @@ export default function StaffServiceRequestsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("ALL");
 
-  const loadRequests = async () => {
-    setLoading(true);
+  const loadRequests = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     setError("");
     try {
       const data = await listStaffServiceRequests();
       setRequests(data || []);
     } catch (err) {
-      setError(err.message || "Failed to load service requests.");
+      if (showLoading) setError(err.message || "Failed to load service requests.");
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadRequests();
+    loadRequests(true);
+
+    const handleNotification = (event) => {
+      const noti = event.detail;
+      if (
+        noti?.type === "SERVICE_REQUEST_SUBMITTED" ||
+        noti?.type === "SERVICE_REQUEST_CANCELLED" ||
+        noti?.type === "SERVICE_REQUEST_REJECTED" ||
+        noti?.type === "APPOINTMENT_CANCELLED" ||
+        noti?.type === "APPOINTMENT_CONFIRMED"
+      ) {
+        // Silently reload requests queue in real time without screen flicker
+        loadRequests(false);
+      }
+    };
+
+    window.addEventListener("repairlink_staff_notification_received", handleNotification);
+    return () => {
+      window.removeEventListener("repairlink_staff_notification_received", handleNotification);
+    };
   }, []);
 
   const filteredRequests = useMemo(() => {
@@ -81,6 +101,8 @@ export default function StaffServiceRequestsPage() {
         return "bg-emerald-50 text-emerald-700 border-emerald-200";
       case "CANCELLED":
         return "bg-slate-100 text-slate-600 border-slate-200";
+      case "REJECTED":
+        return "bg-red-50 text-red-700 border-red-200";
       default:
         return "bg-slate-50 text-slate-700 border-slate-200";
     }
@@ -96,6 +118,8 @@ export default function StaffServiceRequestsPage() {
         return "Completed";
       case "CANCELLED":
         return "Cancelled";
+      case "REJECTED":
+        return "Rejected";
       default:
         return status;
     }
@@ -273,6 +297,17 @@ export default function StaffServiceRequestsPage() {
                     <span className="font-semibold text-slate-700">Problem: </span>
                     {req.problemSummary}
                   </p>
+
+                  {/* Rejection Reason Snippet */}
+                  {req.status === "REJECTED" && req.cancellationReason && (
+                    <div className="rounded-xl border border-red-200 bg-red-50/70 p-3 text-xs text-red-900 leading-relaxed">
+                      <span className="font-bold text-red-950">Decline Reason: </span>
+                      <span className="italic">"{req.cancellationReason}"</span>
+                      {req.cancelledBy && (
+                        <span className="text-red-700 ml-1">({req.cancelledBy})</span>
+                      )}
+                    </div>
+                  )}
 
                   {/* Additional Services Tags */}
                   {req.additionalServiceNames && req.additionalServiceNames.length > 0 && (

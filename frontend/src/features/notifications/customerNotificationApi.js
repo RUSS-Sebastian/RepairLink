@@ -18,15 +18,15 @@ async function parseApiError(response) {
       payload?.message ||
       payload?.error ||
       payload?.errorCode ||
-      "Service request action failed."
+      "Notification request failed."
     );
   } catch {
-    return "Service request action failed.";
+    return "Notification request failed.";
   }
 }
 
-export async function listStaffServiceRequests() {
-  const response = await fetch(`${API_BASE_URL}/staff/service-requests`, {
+export async function getCustomerNotifications() {
+  const response = await fetch(`${API_BASE_URL}/customer/notifications`, {
     method: "GET",
     headers: getAuthHeaders(),
   });
@@ -38,29 +38,12 @@ export async function listStaffServiceRequests() {
   return response.json();
 }
 
-export async function getStaffServiceRequestDetail(serviceRequestId) {
+export async function markCustomerNotificationAsRead(notificationId) {
   const response = await fetch(
-    `${API_BASE_URL}/staff/service-requests/${serviceRequestId}`,
-    {
-      method: "GET",
-      headers: getAuthHeaders(),
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(await parseApiError(response));
-  }
-
-  return response.json();
-}
-
-export async function rejectStaffServiceRequest(serviceRequestId, reason) {
-  const response = await fetch(
-    `${API_BASE_URL}/staff/service-requests/${serviceRequestId}/reject`,
+    `${API_BASE_URL}/customer/notifications/${notificationId}/read`,
     {
       method: "PATCH",
       headers: getAuthHeaders(),
-      body: JSON.stringify({ reason }),
     }
   );
 
@@ -71,11 +54,11 @@ export async function rejectStaffServiceRequest(serviceRequestId, reason) {
   return response.json();
 }
 
-export async function confirmStaffAppointment(serviceRequestId) {
+export async function markAllCustomerNotificationsAsRead() {
   const response = await fetch(
-    `${API_BASE_URL}/staff/service-requests/${serviceRequestId}/confirm-appointment`,
+    `${API_BASE_URL}/customer/notifications/read-all`,
     {
-      method: "POST",
+      method: "PATCH",
       headers: getAuthHeaders(),
     }
   );
@@ -83,6 +66,4 @@ export async function confirmStaffAppointment(serviceRequestId) {
   if (!response.ok) {
     throw new Error(await parseApiError(response));
   }
-
-  return response.json();
 }

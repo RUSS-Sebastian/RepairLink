@@ -77,6 +77,58 @@ export default function ActiveServicePage() {
 
   useEffect(() => {
     loadRequests();
+
+    const handleNotification = (event) => {
+      const noti = event.detail;
+      if (
+        noti?.type === "SERVICE_REQUEST_REJECTED" ||
+        noti?.type === "SERVICE_REQUEST_CANCELLED"
+      ) {
+        if (noti.referenceId) {
+          setRequests((prev) =>
+            prev.map((r) =>
+              r.id === noti.referenceId ? { ...r, status: "REJECTED" } : r
+            )
+          );
+        } else {
+          loadRequests();
+        }
+
+        if (noti.message) {
+          setCancelFeedback(noti.message);
+        }
+      } else if (noti?.type === "APPOINTMENT_CONFIRMED") {
+        loadRequests();
+        if (noti.message) {
+          setCancelFeedback(noti.message);
+        }
+      } else if (noti?.type === "APPOINTMENT_CANCELLED") {
+        loadRequests();
+      }
+    };
+
+    const handleCustomerCancel = () => {
+      loadRequests();
+    };
+
+    window.addEventListener(
+      "repairlink_customer_notification_received",
+      handleNotification
+    );
+    window.addEventListener(
+      "repairlink_appointment_cancelled_by_customer",
+      handleCustomerCancel
+    );
+    return () => {
+      window.removeEventListener(
+        "repairlink_customer_notification_received",
+        handleNotification
+      );
+      window.removeEventListener(
+        "repairlink_appointment_cancelled_by_customer",
+        handleCustomerCancel
+      );
+    };
   }, [loadRequests]);
 
   const handleDeleteConfirm = async () => {
@@ -86,7 +138,7 @@ export default function ActiveServicePage() {
       await deleteServiceRequest(deletingTarget.id);
       setRequests((prev) => prev.filter((r) => r.id !== deletingTarget.id));
       setCancelFeedback(
-        `Service request for "${deletingTarget.vehicle?.nickname || "your vehicle"}" was permanently deleted from the database.`,
+        `Service request for "${deletingTarget.vehicle?.nickname || "your vehicle"}" was permanently deleted from the database.`
       );
       setDeletingTarget(null);
     } catch (err) {
@@ -96,14 +148,15 @@ export default function ActiveServicePage() {
     }
   };
 
-  // Only requests waiting for workshop review appear on this page.
-  // Once status changes to APPOINTMENT_SCHEDULED or CANCELLED, they immediately disappear from this page.
+  // Active requests include pending workshop review as well as scheduled appointments.
+  // Once status is CANCELLED, REJECTED, or COMPLETED, they disappear from this active list.
   const pendingRequests = useMemo(() => {
     return requests.filter(
       (req) =>
-        req.status === "PENDING_REVIEW" &&
-        req.status !== "APPOINTMENT_SCHEDULED" &&
-        req.status !== "CANCELLED",
+        (req.status === "PENDING_REVIEW" || req.status === "APPOINTMENT_SCHEDULED") &&
+        req.status !== "CANCELLED" &&
+        req.status !== "REJECTED" &&
+        req.status !== "COMPLETED",
     );
   }, [requests]);
 
@@ -403,6 +456,7 @@ function ServiceRequestCard({
     }
   }, [request.createdAt]);
 
+  const isScheduled = request.status === "APPOINTMENT_SCHEDULED";
   const isLongProblem = (request.problemDescription || "").length > 180;
 
   return (
@@ -419,10 +473,17 @@ function ServiceRequestCard({
           )}
 
           {/* Status Badge */}
-          <span className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
-            <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-            Pending Workshop Review
-          </span>
+          {isScheduled ? (
+            <span className="inline-flex items-center gap-2 rounded-full border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-bold text-[#0261F3]">
+              <span className="h-2 w-2 rounded-full bg-[#0261F3]" />
+              Appointment Scheduled
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
+              <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+              Pending Workshop Review
+            </span>
+          )}
 
           {/* Vehicle summary badge */}
           {v && (
@@ -590,14 +651,37 @@ function ServiceRequestCard({
           Request ID: <span className="text-slate-600">{request.id}</span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {isScheduled && (
+            <Link
+              to={ROUTES.APPOINTMENTS}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-[#0261F3] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#0256D6]"
+            >
+              <Calendar size={14} />
+              View Appointment
+            </Link>
+          )}
+
           {/* Cancel Request Button */}
           <button
             type="button"
-            onClick={onCancelClick}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+            onClick={isScheduled ? undefined : onCancelClick}
+            disabled={isScheduled}
+            className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-bold shadow-sm transition ${
+              isScheduled
+                ? "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-60"
+                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+            }`}
+            title={
+              isScheduled
+                ? "Appointment is already scheduled. Please use the Appointments page to cancel."
+                : "Cancel service request"
+            }
           >
-            <XCircle size={14} className="text-slate-500" />
+            <XCircle
+              size={14}
+              className={isScheduled ? "text-slate-400" : "text-slate-500"}
+            />
             Cancel Request
           </button>
 
@@ -610,14 +694,26 @@ function ServiceRequestCard({
             Book Another
           </Link>
 
-          {/* Delete Record Button (Dev data cleaning) */}
+          {/* Delete Record Button */}
           <button
             type="button"
-            onClick={onDeleteClick}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50/70 px-3 py-2 text-xs font-bold text-red-700 shadow-sm transition hover:border-red-300 hover:bg-red-100"
-            title="Permanently remove from database (Dev data cleanup)"
+            onClick={isScheduled ? undefined : onDeleteClick}
+            disabled={isScheduled}
+            className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold shadow-sm transition ${
+              isScheduled
+                ? "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-60"
+                : "border-red-200 bg-red-50/70 text-red-700 hover:border-red-300 hover:bg-red-100"
+            }`}
+            title={
+              isScheduled
+                ? "Cannot delete an active scheduled appointment record"
+                : "Permanently remove from database (Dev data cleanup)"
+            }
           >
-            <Trash2 size={13} className="text-red-600" />
+            <Trash2
+              size={13}
+              className={isScheduled ? "text-slate-400" : "text-red-600"}
+            />
             Delete
           </button>
         </div>

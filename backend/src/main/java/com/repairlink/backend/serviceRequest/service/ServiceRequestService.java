@@ -11,6 +11,7 @@ import com.repairlink.backend.security.auth.entity.UserAccount;
 import com.repairlink.backend.security.auth.repository.UserAccountRepository;
 import com.repairlink.backend.notification.entity.NotificationType;
 import com.repairlink.backend.notification.service.NotificationService;
+import com.repairlink.backend.serviceRequest.dto.ActiveVehicleStatusDto;
 import com.repairlink.backend.serviceRequest.dto.CustomerServiceRequestDetailResponse;
 import com.repairlink.backend.serviceRequest.dto.ServiceRequestResponse;
 import com.repairlink.backend.serviceRequest.dto.StaffServiceRequestDetailResponse;
@@ -276,7 +277,9 @@ public class ServiceRequestService {
                     serviceDtos,
                     photoDtos,
                     req.getCreatedAt(),
-                    req.getUpdatedAt()
+                    req.getUpdatedAt(),
+                    req.getCancellationReason(),
+                    req.getCancelledBy()
             );
         }).toList();
     }
@@ -339,9 +342,21 @@ public class ServiceRequestService {
     @Transactional(readOnly = true)
     public List<UUID> getActiveVehicleIdsForCustomer(UUID customerId) {
         return requestRepository.findByCustomerUserIdOrderByCreatedAtDesc(customerId).stream()
-                .filter(r -> r.getStatus() != ServiceRequestStatus.CANCELLED && r.getStatus() != ServiceRequestStatus.REJECTED)
+                .filter(r -> r.getStatus() != ServiceRequestStatus.CANCELLED && r.getStatus() != ServiceRequestStatus.REJECTED && r.getStatus() != ServiceRequestStatus.COMPLETED)
                 .map(r -> r.getVehicle().getVehicleId())
                 .distinct()
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ActiveVehicleStatusDto> getActiveVehiclesForCustomer(UUID customerId) {
+        return requestRepository.findByCustomerUserIdOrderByCreatedAtDesc(customerId).stream()
+                .filter(r -> r.getStatus() != ServiceRequestStatus.CANCELLED && r.getStatus() != ServiceRequestStatus.REJECTED && r.getStatus() != ServiceRequestStatus.COMPLETED)
+                .map(r -> new ActiveVehicleStatusDto(
+                        r.getVehicle().getVehicleId(),
+                        r.getStatus().name(),
+                        r.getRequestCode()
+                ))
                 .toList();
     }
 
@@ -395,9 +410,76 @@ public class ServiceRequestService {
                     req.getHandoverMethod().name(),
                     req.getPhotos().size(),
                     additionalServiceNames,
-                    req.getCreatedAt()
+                    req.getCreatedAt(),
+                    req.getCancellationReason(),
+                    req.getCancelledBy()
             );
         }).toList();
+    }
+
+    @Transactional
+    public StaffServiceRequestDetailResponse rejectServiceRequestByStaff(UUID serviceRequestId, String reason) {
+        ServiceRequest req = requestRepository.findById(serviceRequestId)
+                .orElseThrow(() -> new IllegalArgumentException("Service request not found: " + serviceRequestId));
+
+        if (req.getStatus() == ServiceRequestStatus.COMPLETED) {
+            throw new IllegalArgumentException("Completed service requests cannot be rejected.");
+        }
+
+        if (req.getStatus() == ServiceRequestStatus.APPOINTMENT_SCHEDULED) {
+            throw new IllegalStateException("An appointment has already been scheduled for this service request and it cannot be rejected.");
+        }
+
+        if (req.getStatus() == ServiceRequestStatus.REJECTED || req.getStatus() == ServiceRequestStatus.CANCELLED) {
+            throw new IllegalArgumentException("This service request has already been cancelled or rejected.");
+        }
+
+        req.setStatus(ServiceRequestStatus.REJECTED);
+        req.setCancellationReason(reason);
+        req.setCancelledBy("STAFF");
+        req.setUpdatedAt(Instant.now());
+
+        ServiceRequest saved = requestRepository.save(req);
+
+        // Release slot hold if any
+        try {
+            slotHoldRepository.releaseActiveHoldsByCustomerId(saved.getCustomer().getUserId(), Instant.now());
+        } catch (Exception ignored) {
+        }
+
+        // Notify customer in real time over WebSocket & persist customer notification
+        try {
+            UserAccount customer = saved.getCustomer();
+            Vehicle vehicle = saved.getVehicle();
+            String vehicleName = vehicle != null ? (vehicle.getYear() + " " + vehicle.getMake() + " " + vehicle.getModel()) : "vehicle";
+            String notiTitle = "Service Request Declined";
+            String notiMessage = "Your request " + saved.getRequestCode() + " for " + vehicleName +
+                    " was declined by RepairLink Center. Reason: " + reason;
+
+            notificationService.createAndSendCustomerNotification(
+                    customer,
+                    notiTitle,
+                    notiMessage,
+                    NotificationType.SERVICE_REQUEST_REJECTED,
+                    saved.getServiceRequestId(),
+                    saved.getRequestCode()
+            );
+        } catch (Exception ignored) {
+        }
+
+        // Broadcast to all staff members so other open staff views update in real-time
+        try {
+            notificationService.createAndBroadcastStaffNotification(
+                    "Service Request Declined",
+                    "Service request " + saved.getRequestCode() + " was declined by staff: " + reason,
+                    NotificationType.SERVICE_REQUEST_REJECTED,
+                    saved.getServiceRequestId(),
+                    saved.getRequestCode()
+            );
+        } catch (Exception ignored) {
+        }
+
+        return getServiceRequestDetailForStaff(saved.getServiceRequestId());
     }
 
     @Transactional(readOnly = true)
@@ -495,7 +577,9 @@ public class ServiceRequestService {
                 photoDtos,
                 lifecycle,
                 req.getCreatedAt(),
-                req.getUpdatedAt()
+                req.getUpdatedAt(),
+                req.getCancellationReason(),
+                req.getCancelledBy()
         );
     }
 

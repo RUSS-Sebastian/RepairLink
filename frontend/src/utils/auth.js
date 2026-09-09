@@ -18,6 +18,7 @@ export function getStoredAuthSession() {
 export function setStoredAuthSession({ accessToken, tokenType, user }) {
   localStorage.setItem(TOKEN_KEY, accessToken);
   localStorage.setItem(USER_KEY, JSON.stringify({ ...user, tokenType }));
+  window.dispatchEvent(new Event("repairlink_auth_updated"));
 }
 
 export function updateStoredAuthUser(updates) {
@@ -37,6 +38,7 @@ export function updateStoredAuthUser(updates) {
 export function clearStoredAuthSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  window.dispatchEvent(new Event("repairlink_auth_updated"));
 }
 
 export function isCustomerAuthenticated() {
