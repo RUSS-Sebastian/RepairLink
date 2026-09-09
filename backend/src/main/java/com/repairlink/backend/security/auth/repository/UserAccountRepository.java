@@ -18,6 +18,12 @@ public interface UserAccountRepository
 
     boolean existsByEmailIgnoreCaseAndUserIdNot(String email, UUID userId);
 
+    boolean existsByUsernameIgnoreCase(String username);
+
+    boolean existsByUsernameIgnoreCaseAndUserIdNot(String username, UUID userId);
+
+    Optional<UserAccount> findByUsernameIgnoreCase(String username);
+
     boolean existsByPhone(String phone);
 
     boolean existsByPhoneAndUserIdNot(String phone, UUID userId);

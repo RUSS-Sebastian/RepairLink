@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface UserRoleRepository
@@ -12,4 +13,11 @@ public interface UserRoleRepository
 
     @EntityGraph(attributePaths = "role")
     List<UserRole> findAllByUserUserIdAndActiveTrue(UUID userId);
+
+    @EntityGraph(attributePaths = {"user", "role"})
+    List<UserRole> findAllByRoleRoleCodeInAndActiveTrueOrderByUserCreatedAtDesc(List<com.repairlink.backend.common.enums.RoleCode> roleCodes);
+
+    Optional<UserRole> findFirstByUserUserIdAndActiveTrue(UUID userId);
+
+    void deleteAllByUserUserId(UUID userId);
 }

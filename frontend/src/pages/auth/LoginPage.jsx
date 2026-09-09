@@ -85,8 +85,13 @@ function LoginPage() {
       });
 
       const role = response.user?.role;
+      const isStaff = role === "STAFF" || role === "CENTER_STAFF";
       const nextRoute =
-        role === "ADMIN" ? ROUTES.ADMIN_DASHBOARD : ROUTES.CUSTOMER_DASHBOARD;
+        role === "ADMIN"
+          ? ROUTES.ADMIN_DASHBOARD
+          : isStaff
+            ? ROUTES.STAFF_DASHBOARD
+            : ROUTES.CUSTOMER_DASHBOARD;
 
       setSubmitSuccess("Login successful. Redirecting to your dashboard...");
 

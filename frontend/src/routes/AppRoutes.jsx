@@ -17,16 +17,63 @@ import AdditionalServicesPage from "../pages/admin/AdditionalServicesPage";
 import AdminProfilePage from "../pages/admin/AdminProfilePage";
 import LoyaltyPage from "../pages/admin/LoyaltyPage";
 import AdminDashboardPage from "../pages/admin/AdminDashboardPage";
+import StaffAccountsPage from "../pages/admin/StaffAccountsPage";
+import StaffDashboardPage from "../pages/staff/StaffDashboardPage";
+import StaffPlaceholderPage from "../pages/staff/StaffPlaceholderPage";
 import AppLayout from "../layouts/AppLayout";
 import MainLayout from "../layouts/MainLayout";
+
+import {
+  Activity,
+  Bell,
+  CalendarDays,
+  Car,
+  FileText,
+  Gauge,
+  Truck,
+  User,
+  UserCheck,
+  Users,
+  Wrench,
+} from "lucide-react";
 
 import { ROUTES } from "../constants/routes";
 import { getStoredAuthSession } from "../utils/auth";
 
+function isStaffRole(role) {
+  return role === "STAFF" || role === "CENTER_STAFF";
+}
+
+function getDefaultRouteForSession() {
+  const session = getStoredAuthSession();
+  if (!session.token) {
+    return ROUTES.LANDING;
+  }
+  if (session.user?.role === "ADMIN") {
+    return ROUTES.ADMIN_DASHBOARD;
+  }
+  if (isStaffRole(session.user?.role)) {
+    return ROUTES.STAFF_DASHBOARD;
+  }
+  return ROUTES.DASHBOARD;
+}
+
 function ProtectedCustomerRoute({ children }) {
   const { token, user } = getStoredAuthSession();
 
-  if (!token || user?.role !== "CUSTOMER") {
+  if (!token) {
+    return <Navigate to={ROUTES.LOGIN} replace />;
+  }
+
+  if (user?.role === "ADMIN") {
+    return <Navigate to={ROUTES.ADMIN_DASHBOARD} replace />;
+  }
+
+  if (isStaffRole(user?.role)) {
+    return <Navigate to={ROUTES.STAFF_DASHBOARD} replace />;
+  }
+
+  if (user?.role !== "CUSTOMER") {
     return <Navigate to={ROUTES.LOGIN} replace />;
   }
 
@@ -36,7 +83,41 @@ function ProtectedCustomerRoute({ children }) {
 function ProtectedAdminRoute({ children }) {
   const { token, user } = getStoredAuthSession();
 
-  if (!token || user?.role !== "ADMIN") {
+  if (!token) {
+    return <Navigate to={ROUTES.LOGIN} replace />;
+  }
+
+  if (user?.role === "CUSTOMER") {
+    return <Navigate to={ROUTES.DASHBOARD} replace />;
+  }
+
+  if (isStaffRole(user?.role)) {
+    return <Navigate to={ROUTES.STAFF_DASHBOARD} replace />;
+  }
+
+  if (user?.role !== "ADMIN") {
+    return <Navigate to={ROUTES.LOGIN} replace />;
+  }
+
+  return <AppLayout>{children}</AppLayout>;
+}
+
+function ProtectedStaffRoute({ children }) {
+  const { token, user } = getStoredAuthSession();
+
+  if (!token) {
+    return <Navigate to={ROUTES.LOGIN} replace />;
+  }
+
+  if (user?.role === "ADMIN") {
+    return <Navigate to={ROUTES.ADMIN_DASHBOARD} replace />;
+  }
+
+  if (user?.role === "CUSTOMER") {
+    return <Navigate to={ROUTES.DASHBOARD} replace />;
+  }
+
+  if (!isStaffRole(user?.role)) {
     return <Navigate to={ROUTES.LOGIN} replace />;
   }
 
@@ -223,6 +304,15 @@ function AppRoutes() {
       />
 
       <Route
+        path={ROUTES.ADMIN_STAFF}
+        element={
+          <ProtectedAdminRoute>
+            <StaffAccountsPage />
+          </ProtectedAdminRoute>
+        }
+      />
+
+      <Route
         path={ROUTES.ADMIN_NOTIFICATIONS}
         element={
           <ProtectedAdminRoute>
@@ -264,36 +354,169 @@ function AppRoutes() {
         }
       />
 
+      {/* Staff Routes */}
+      <Route
+        path={ROUTES.STAFF_DASHBOARD}
+        element={
+          <ProtectedStaffRoute>
+            <StaffDashboardPage />
+          </ProtectedStaffRoute>
+        }
+      />
+
+      <Route
+        path={ROUTES.STAFF_SERVICE_REQUESTS}
+        element={
+          <ProtectedStaffRoute>
+            <StaffPlaceholderPage
+              title="Service Requests"
+              description="Review incoming customer service requests, photo inspections, and issue reports."
+              icon={Gauge}
+            />
+          </ProtectedStaffRoute>
+        }
+      />
+
+      <Route
+        path={ROUTES.STAFF_APPOINTMENTS}
+        element={
+          <ProtectedStaffRoute>
+            <StaffPlaceholderPage
+              title="Appointments"
+              description="View center calendar, scheduled customer service slots, and technician availability."
+              icon={CalendarDays}
+            />
+          </ProtectedStaffRoute>
+        }
+      />
+
+      <Route
+        path={ROUTES.STAFF_CHECKIN}
+        element={
+          <ProtectedStaffRoute>
+            <StaffPlaceholderPage
+              title="Customer Check In"
+              description="Process arriving vehicles, log current odometer readings, and verify condition notes."
+              icon={UserCheck}
+            />
+          </ProtectedStaffRoute>
+        }
+      />
+
+      <Route
+        path={ROUTES.STAFF_VEHICLES}
+        element={
+          <ProtectedStaffRoute>
+            <StaffPlaceholderPage
+              title="Vehicles Directory"
+              description="Search and inspect registered customer vehicles, specifications, and service logs."
+              icon={Car}
+            />
+          </ProtectedStaffRoute>
+        }
+      />
+
+      <Route
+        path={ROUTES.STAFF_ESTIMATES}
+        element={
+          <ProtectedStaffRoute>
+            <StaffPlaceholderPage
+              title="Estimates"
+              description="Prepare, revise, and dispatch repair cost estimates for customer approval."
+              icon={FileText}
+            />
+          </ProtectedStaffRoute>
+        }
+      />
+
+      <Route
+        path={ROUTES.STAFF_WORK_ORDERS}
+        element={
+          <ProtectedStaffRoute>
+            <StaffPlaceholderPage
+              title="Work Orders"
+              description="Manage ongoing repair jobs, assign mechanics, and track repair stage progress."
+              icon={Wrench}
+            />
+          </ProtectedStaffRoute>
+        }
+      />
+
+      <Route
+        path={ROUTES.STAFF_ADDITIONAL_WORK}
+        element={
+          <ProtectedStaffRoute>
+            <StaffPlaceholderPage
+              title="Additional Work"
+              description="Request authorization for unexpected repair requirements discovered during service."
+              icon={Activity}
+            />
+          </ProtectedStaffRoute>
+        }
+      />
+
+      <Route
+        path={ROUTES.STAFF_CUSTOMERS}
+        element={
+          <ProtectedStaffRoute>
+            <StaffPlaceholderPage
+              title="Customers"
+              description="Access customer contact information, vehicle portfolios, and loyalty accounts."
+              icon={Users}
+            />
+          </ProtectedStaffRoute>
+        }
+      />
+
+      <Route
+        path={ROUTES.STAFF_PICKUP_DELIVERY}
+        element={
+          <ProtectedStaffRoute>
+            <StaffPlaceholderPage
+              title="Pickup & Delivery"
+              description="Dispatch and track concierge vehicle pickup and drop-off transport operations."
+              icon={Truck}
+            />
+          </ProtectedStaffRoute>
+        }
+      />
+
+      <Route
+        path={ROUTES.STAFF_NOTIFICATIONS}
+        element={
+          <ProtectedStaffRoute>
+            <StaffPlaceholderPage
+              title="Notifications"
+              description="Center activity alerts, customer communications, and work order status updates."
+              icon={Bell}
+            />
+          </ProtectedStaffRoute>
+        }
+      />
+
+      <Route
+        path={ROUTES.STAFF_PROFILE}
+        element={
+          <ProtectedStaffRoute>
+            <StaffPlaceholderPage
+              title="Staff Profile"
+              description="Manage your staff profile details, center credentials, and security preferences."
+              icon={User}
+            />
+          </ProtectedStaffRoute>
+        }
+      />
+
       {/* Default */}
       <Route
         path="/"
-        element={
-          <Navigate
-            to={
-              getStoredAuthSession().token
-                ? getStoredAuthSession().user?.role === "ADMIN"
-                  ? ROUTES.ADMIN_DASHBOARD
-                  : ROUTES.DASHBOARD
-                : ROUTES.LANDING
-            }
-            replace
-          />
-        }
+        element={<Navigate to={getDefaultRouteForSession()} replace />}
       />
 
       {/* Unknown routes */}
       <Route
         path="*"
-        element={
-          <Navigate
-            to={
-              getStoredAuthSession().user?.role === "ADMIN"
-                ? ROUTES.ADMIN_DASHBOARD
-                : ROUTES.DASHBOARD
-            }
-            replace
-          />
-        }
+        element={<Navigate to={getDefaultRouteForSession()} replace />}
       />
     </Routes>
   );

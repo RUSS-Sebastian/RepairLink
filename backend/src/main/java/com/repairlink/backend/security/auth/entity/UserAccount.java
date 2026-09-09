@@ -23,13 +23,16 @@ public class UserAccount {
     @Column(name = "user_id", nullable = false, updatable = false)
     private UUID userId;
 
+    @Column(name = "username", length = 100)
+    private String username;
+
     @Column(name = "full_name", nullable = false, length = 150)
     private String fullName;
 
     @Column(name = "email", nullable = false, unique = true, length = 254)
     private String email;
 
-    @Column(name = "phone", nullable = false, unique = true, length = 20)
+    @Column(name = "phone", length = 20)
     private String phone;
 
     @Column(name = "password_hash", nullable = false, length = 255)
@@ -70,6 +73,14 @@ public class UserAccount {
 
     public UUID getUserId() {
         return userId;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
     }
 
     public String getFullName() {

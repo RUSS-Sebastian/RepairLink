@@ -22,8 +22,22 @@ export const ROUTES = {
   ADMIN_SCHEDULING_DETAIL: "/admin/scheduling/:configurationId",
   ADMIN_SCHEDULING_NEW: "/admin/scheduling/new",
   ADMIN_LOYALTY: "/admin/loyalty",
+  ADMIN_STAFF: "/admin/staff",
   ADMIN_NOTIFICATIONS: "/admin/notifications",
   ADMIN_PROFILE: "/admin/profile",
+
+  STAFF_DASHBOARD: "/staff/dashboard",
+  STAFF_SERVICE_REQUESTS: "/staff/service-requests",
+  STAFF_APPOINTMENTS: "/staff/appointments",
+  STAFF_CHECKIN: "/staff/checkin",
+  STAFF_VEHICLES: "/staff/vehicles",
+  STAFF_ESTIMATES: "/staff/estimates",
+  STAFF_WORK_ORDERS: "/staff/work-orders",
+  STAFF_ADDITIONAL_WORK: "/staff/additional-work",
+  STAFF_CUSTOMERS: "/staff/customers",
+  STAFF_PICKUP_DELIVERY: "/staff/pickup-delivery",
+  STAFF_NOTIFICATIONS: "/staff/notifications",
+  STAFF_PROFILE: "/staff/profile",
 };
 
 export default ROUTES;

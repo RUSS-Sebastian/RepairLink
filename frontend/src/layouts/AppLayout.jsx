@@ -8,12 +8,17 @@ import {
   CreditCard,
   ChevronLeft,
   ChevronRight,
+  FileText,
   Gauge,
   History,
   House,
   LogOut,
   MessageSquareText,
+  Truck,
   User,
+  UserCheck,
+  Users,
+  Wrench,
   X,
 } from "lucide-react";
 
@@ -44,8 +49,24 @@ const adminNavigationItems = [
   },
   { label: "Scheduling", path: ROUTES.ADMIN_SCHEDULING, icon: CalendarDays },
   { label: "Loyalty", path: ROUTES.ADMIN_LOYALTY, icon: CreditCard },
+  { label: "Staff Accounts", path: ROUTES.ADMIN_STAFF, icon: Users },
   { label: "Notifications", path: ROUTES.ADMIN_NOTIFICATIONS, icon: Bell },
   { label: "Admin Profile", path: ROUTES.ADMIN_PROFILE, icon: User },
+];
+
+const staffNavigationItems = [
+  { label: "Dashboard", path: ROUTES.STAFF_DASHBOARD, icon: House },
+  { label: "Service Requests", path: ROUTES.STAFF_SERVICE_REQUESTS, icon: Gauge },
+  { label: "Appointments", path: ROUTES.STAFF_APPOINTMENTS, icon: CalendarDays },
+  { label: "Check In", path: ROUTES.STAFF_CHECKIN, icon: UserCheck },
+  { label: "Vehicles", path: ROUTES.STAFF_VEHICLES, icon: Car },
+  { label: "Estimates", path: ROUTES.STAFF_ESTIMATES, icon: FileText },
+  { label: "Work Orders", path: ROUTES.STAFF_WORK_ORDERS, icon: Wrench },
+  { label: "Additional Work", path: ROUTES.STAFF_ADDITIONAL_WORK, icon: Activity },
+  { label: "Customers", path: ROUTES.STAFF_CUSTOMERS, icon: Users },
+  { label: "Pickup & Delivery", path: ROUTES.STAFF_PICKUP_DELIVERY, icon: Truck },
+  { label: "Notifications", path: ROUTES.STAFF_NOTIFICATIONS, icon: Bell },
+  { label: "Profile", path: ROUTES.STAFF_PROFILE, icon: User },
 ];
 
 function AppLayout({ children }) {
@@ -68,10 +89,20 @@ function AppLayout({ children }) {
   }, []);
 
   const userRole = session.user?.role;
-  const navigationItems =
-    userRole === "ADMIN" ? adminNavigationItems : customerNavigationItems;
-  const consoleLabel =
-    userRole === "ADMIN" ? "ADMIN CONSOLE" : "Customer Portal";
+  const isAdmin = userRole === "ADMIN";
+  const isStaff = userRole === "STAFF" || userRole === "CENTER_STAFF";
+
+  const navigationItems = isAdmin
+    ? adminNavigationItems
+    : isStaff
+      ? staffNavigationItems
+      : customerNavigationItems;
+
+  const consoleLabel = isAdmin
+    ? "ADMIN CONSOLE"
+    : isStaff
+      ? "STAFF CONSOLE"
+      : "Customer Portal";
 
   const handleLogout = () => {
     clearStoredAuthSession();
@@ -82,8 +113,17 @@ function AppLayout({ children }) {
     navigate(ROUTES.LOGIN, { replace: true });
   };
 
-  const displayName = session.user?.fullName || "Customer";
-  const displayEmail = session.user?.email || "customer@repairlink.com";
+  const displayName =
+    session.user?.fullName ||
+    session.user?.username ||
+    (isAdmin ? "Administrator" : isStaff ? "Staff Member" : "Customer");
+  const displayEmail =
+    session.user?.email ||
+    (isAdmin
+      ? "admin@repairlink.com"
+      : isStaff
+        ? "staff@repairlink.com"
+        : "customer@repairlink.com");
   const initials = displayName
     .split(" ")
     .map((part) => part[0])
