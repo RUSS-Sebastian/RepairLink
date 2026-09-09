@@ -28,6 +28,7 @@ export const ROUTES = {
 
   STAFF_DASHBOARD: "/staff/dashboard",
   STAFF_SERVICE_REQUESTS: "/staff/service-requests",
+  STAFF_SERVICE_REQUEST_DETAIL: "/staff/service-requests/:id",
   STAFF_APPOINTMENTS: "/staff/appointments",
   STAFF_CHECKIN: "/staff/checkin",
   STAFF_VEHICLES: "/staff/vehicles",

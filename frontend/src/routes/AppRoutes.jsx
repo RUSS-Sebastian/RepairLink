@@ -20,6 +20,9 @@ import AdminDashboardPage from "../pages/admin/AdminDashboardPage";
 import StaffAccountsPage from "../pages/admin/StaffAccountsPage";
 import StaffDashboardPage from "../pages/staff/StaffDashboardPage";
 import StaffPlaceholderPage from "../pages/staff/StaffPlaceholderPage";
+import StaffNotificationsPage from "../pages/staff/StaffNotificationsPage";
+import StaffServiceRequestsPage from "../pages/staff/StaffServiceRequestsPage";
+import StaffServiceRequestDetailPage from "../pages/staff/StaffServiceRequestDetailPage";
 import AppLayout from "../layouts/AppLayout";
 import MainLayout from "../layouts/MainLayout";
 
@@ -368,11 +371,16 @@ function AppRoutes() {
         path={ROUTES.STAFF_SERVICE_REQUESTS}
         element={
           <ProtectedStaffRoute>
-            <StaffPlaceholderPage
-              title="Service Requests"
-              description="Review incoming customer service requests, photo inspections, and issue reports."
-              icon={Gauge}
-            />
+            <StaffServiceRequestsPage />
+          </ProtectedStaffRoute>
+        }
+      />
+
+      <Route
+        path={ROUTES.STAFF_SERVICE_REQUEST_DETAIL}
+        element={
+          <ProtectedStaffRoute>
+            <StaffServiceRequestDetailPage />
           </ProtectedStaffRoute>
         }
       />
@@ -485,11 +493,7 @@ function AppRoutes() {
         path={ROUTES.STAFF_NOTIFICATIONS}
         element={
           <ProtectedStaffRoute>
-            <StaffPlaceholderPage
-              title="Notifications"
-              description="Center activity alerts, customer communications, and work order status updates."
-              icon={Bell}
-            />
+            <StaffNotificationsPage />
           </ProtectedStaffRoute>
         }
       />

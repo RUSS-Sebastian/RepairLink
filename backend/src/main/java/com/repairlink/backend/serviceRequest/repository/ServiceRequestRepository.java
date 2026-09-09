@@ -13,6 +13,7 @@ import java.util.UUID;
 public interface ServiceRequestRepository extends JpaRepository<ServiceRequest, UUID> {
     Page<ServiceRequest> findByCustomerUserIdOrderByCreatedAtDesc(UUID customerId, Pageable pageable);
     List<ServiceRequest> findByCustomerUserIdOrderByCreatedAtDesc(UUID customerId);
+    List<ServiceRequest> findAllByOrderByCreatedAtDesc();
     boolean existsByVehicleVehicleIdAndStatusNotIn(UUID vehicleId, Collection<ServiceRequestStatus> statuses);
 
     @org.springframework.data.jpa.repository.Query("SELECT COUNT(sr) FROM ServiceRequest sr WHERE sr.preferredDate = :date AND sr.preferredTimeSlot = :timeSlot AND sr.status NOT IN (com.repairlink.backend.serviceRequest.entity.ServiceRequestStatus.CANCELLED, com.repairlink.backend.serviceRequest.entity.ServiceRequestStatus.REJECTED)")

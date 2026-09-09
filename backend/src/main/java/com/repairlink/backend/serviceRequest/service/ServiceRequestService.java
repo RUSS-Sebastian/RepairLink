@@ -9,8 +9,12 @@ import com.repairlink.backend.schedule.repository.SlotHoldRepository;
 import com.repairlink.backend.schedule.service.ScheduleService;
 import com.repairlink.backend.security.auth.entity.UserAccount;
 import com.repairlink.backend.security.auth.repository.UserAccountRepository;
+import com.repairlink.backend.notification.entity.NotificationType;
+import com.repairlink.backend.notification.service.NotificationService;
 import com.repairlink.backend.serviceRequest.dto.CustomerServiceRequestDetailResponse;
 import com.repairlink.backend.serviceRequest.dto.ServiceRequestResponse;
+import com.repairlink.backend.serviceRequest.dto.StaffServiceRequestDetailResponse;
+import com.repairlink.backend.serviceRequest.dto.StaffServiceRequestSummaryResponse;
 import com.repairlink.backend.serviceRequest.entity.*;
 import com.repairlink.backend.serviceRequest.repository.ServiceRequestRepository;
 import com.repairlink.backend.vehicle.entity.Vehicle;
@@ -35,6 +39,7 @@ public class ServiceRequestService {
     private final FileStorageService fileStorageService;
     private final SlotHoldRepository slotHoldRepository;
     private final ScheduleService scheduleService;
+    private final NotificationService notificationService;
 
     public ServiceRequestService(
             ServiceRequestRepository requestRepository,
@@ -43,7 +48,8 @@ public class ServiceRequestService {
             AdditionalServiceRepository additionalServiceRepository,
             FileStorageService fileStorageService,
             SlotHoldRepository slotHoldRepository,
-            ScheduleService scheduleService
+            ScheduleService scheduleService,
+            NotificationService notificationService
     ) {
         this.requestRepository = requestRepository;
         this.userRepository = userRepository;
@@ -52,6 +58,7 @@ public class ServiceRequestService {
         this.fileStorageService = fileStorageService;
         this.slotHoldRepository = slotHoldRepository;
         this.scheduleService = scheduleService;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -180,8 +187,21 @@ public class ServiceRequestService {
         }
         slotHoldRepository.releaseActiveHoldsByCustomerId(customerId, now);
 
-        // Build response
         String vehicleName = vehicle.getYear() + " " + vehicle.getMake() + " " + vehicle.getModel();
+
+        // Broadcast notification to staff
+        try {
+            notificationService.createAndBroadcastStaffNotification(
+                    "New Service Request",
+                    "Customer " + customer.getFullName() + " submitted request " + saved.getRequestCode() + " for " + vehicleName,
+                    NotificationType.SERVICE_REQUEST_SUBMITTED,
+                    saved.getServiceRequestId(),
+                    saved.getRequestCode()
+            );
+        } catch (Exception ignored) {
+        }
+
+        // Build response
         List<String> serviceNames = selectedServices.stream()
                 .map(AdditionalService::getName)
                 .sorted()
@@ -294,7 +314,26 @@ public class ServiceRequestService {
         }
 
         request.setStatus(ServiceRequestStatus.CANCELLED);
-        requestRepository.save(request);
+        ServiceRequest saved = requestRepository.save(request);
+
+        // Notify staff in real time that the customer cancelled this request
+        try {
+            UserAccount customer = request.getCustomer();
+            Vehicle vehicle = request.getVehicle();
+            String customerName = customer != null ? customer.getFullName() : "Customer";
+            String vehicleName = vehicle != null
+                    ? (vehicle.getYear() + " " + vehicle.getMake() + " " + vehicle.getModel())
+                    : "vehicle";
+
+            notificationService.createAndBroadcastStaffNotification(
+                    "Service Request Cancelled",
+                    "Customer " + customerName + " cancelled request " + saved.getRequestCode() + " for " + vehicleName,
+                    NotificationType.SERVICE_REQUEST_CANCELLED,
+                    saved.getServiceRequestId(),
+                    saved.getRequestCode()
+            );
+        } catch (Exception ignored) {
+        }
     }
 
     @Transactional(readOnly = true)
@@ -314,5 +353,159 @@ public class ServiceRequestService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    @Transactional(readOnly = true)
+    public List<StaffServiceRequestSummaryResponse> getAllServiceRequestsForStaff() {
+        List<ServiceRequest> requests = requestRepository.findAllByOrderByCreatedAtDesc();
+
+        return requests.stream().map(req -> {
+            Vehicle v = req.getVehicle();
+            String vehicleName = v != null
+                    ? (v.getYear() + " " + v.getMake() + " " + v.getModel())
+                    : "N/A";
+            String licensePlate = v != null ? v.getLicensePlate() : "N/A";
+
+            UserAccount customer = req.getCustomer();
+            String customerName = customer != null ? customer.getFullName() : "Unknown";
+            String customerEmail = customer != null ? customer.getEmail() : "";
+            String customerPhone = customer != null ? customer.getPhone() : "";
+
+            List<String> additionalServiceNames = req.getAdditionalServices().stream()
+                    .map(AdditionalService::getName)
+                    .sorted()
+                    .toList();
+
+            String problemSummary = req.getProblemDescription().length() > 80
+                    ? req.getProblemDescription().substring(0, 80) + "..."
+                    : req.getProblemDescription();
+
+            return new StaffServiceRequestSummaryResponse(
+                    req.getServiceRequestId(),
+                    req.getRequestCode(),
+                    req.getStatus().name(),
+                    customerName,
+                    customerEmail,
+                    customerPhone,
+                    vehicleName,
+                    licensePlate,
+                    problemSummary,
+                    req.getPreferredDate(),
+                    req.getPreferredTimeSlot(),
+                    req.getHandoverMethod().name(),
+                    req.getPhotos().size(),
+                    additionalServiceNames,
+                    req.getCreatedAt()
+            );
+        }).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public StaffServiceRequestDetailResponse getServiceRequestDetailForStaff(UUID serviceRequestId) {
+        ServiceRequest req = requestRepository.findById(serviceRequestId)
+                .orElseThrow(() -> new IllegalArgumentException("Service request not found: " + serviceRequestId));
+
+        UserAccount customer = req.getCustomer();
+        StaffServiceRequestDetailResponse.CustomerProfileDto customerDto =
+                new StaffServiceRequestDetailResponse.CustomerProfileDto(
+                        customer.getUserId(),
+                        customer.getFullName(),
+                        customer.getEmail(),
+                        customer.getPhone(),
+                        formatMemberSince(customer.getCreatedAt())
+                );
+
+        Vehicle v = req.getVehicle();
+        StaffServiceRequestDetailResponse.VehicleDetailDto vehicleDto =
+                new StaffServiceRequestDetailResponse.VehicleDetailDto(
+                        v.getVehicleId(),
+                        v.getNickname(),
+                        v.getMake(),
+                        v.getModel(),
+                        v.getYear(),
+                        v.getLicensePlate(),
+                        v.getVehicleType() != null ? v.getVehicleType().name() : "NORMAL_CAR",
+                        v.getFuelType() != null ? v.getFuelType().name() : null,
+                        v.getTransmission() != null ? v.getTransmission().name() : null,
+                        v.getColor(),
+                        v.getCurrentMileage(),
+                        v.getMileageUnit() != null ? v.getMileageUnit().name() : "MI"
+                );
+
+        List<StaffServiceRequestDetailResponse.ServiceItemDto> serviceDtos =
+                req.getAdditionalServices().stream()
+                        .map(s -> new StaffServiceRequestDetailResponse.ServiceItemDto(
+                                s.getAdditionalServiceId(),
+                                s.getName(),
+                                s.getPrice()
+                        ))
+                        .sorted(Comparator.comparing(StaffServiceRequestDetailResponse.ServiceItemDto::name))
+                        .toList();
+
+        List<StaffServiceRequestDetailResponse.PhotoItemDto> photoDtos =
+                req.getPhotos().stream()
+                        .map(p -> new StaffServiceRequestDetailResponse.PhotoItemDto(
+                                p.getPhotoId(),
+                                p.getOriginalFileName(),
+                                p.getStoredFileName(),
+                                "/uploads/" + p.getStoredFileName(),
+                                p.getFileSize(),
+                                p.getContentType()
+                        ))
+                        .toList();
+
+        boolean isScheduled = req.getStatus() == ServiceRequestStatus.APPOINTMENT_SCHEDULED
+                || req.getStatus() == ServiceRequestStatus.COMPLETED;
+        boolean isCompleted = req.getStatus() == ServiceRequestStatus.COMPLETED;
+
+        StaffServiceRequestDetailResponse.ServiceLifecycleDto lifecycle =
+                new StaffServiceRequestDetailResponse.ServiceLifecycleDto(
+                        new StaffServiceRequestDetailResponse.LifecycleStepDto(
+                                "Service Request Created",
+                                true,
+                                false,
+                                req.getCreatedAt()
+                        ),
+                        new StaffServiceRequestDetailResponse.LifecycleStepDto(
+                                "Appointment Scheduled",
+                                isScheduled,
+                                !isScheduled,
+                                isScheduled ? req.getUpdatedAt() : null
+                        ),
+                        new StaffServiceRequestDetailResponse.LifecycleStepDto(
+                                "Completed",
+                                isCompleted,
+                                !isCompleted,
+                                isCompleted ? req.getUpdatedAt() : null
+                        )
+                );
+
+        return new StaffServiceRequestDetailResponse(
+                req.getServiceRequestId(),
+                req.getRequestCode(),
+                req.getStatus().name(),
+                customerDto,
+                vehicleDto,
+                req.getProblemDescription(),
+                req.getPreferredDate(),
+                req.getPreferredTimeSlot(),
+                req.getHandoverMethod().name(),
+                req.getPickupLocation(),
+                serviceDtos,
+                photoDtos,
+                lifecycle,
+                req.getCreatedAt(),
+                req.getUpdatedAt()
+        );
+    }
+
+    private String formatMemberSince(Instant createdAt) {
+        if (createdAt == null) {
+            return "";
+        }
+        return createdAt
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDate()
+                .toString();
     }
 }

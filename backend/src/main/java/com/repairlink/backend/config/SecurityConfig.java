@@ -82,6 +82,7 @@ public class SecurityConfig {
                                         "/api/health",
                                         "/api/schedule/**",
                                         "/uploads/**",
+                                        "/ws/**",
                                         "/error"
                                 )
                                 .permitAll()
@@ -93,6 +94,8 @@ public class SecurityConfig {
                                 .hasRole("CUSTOMER")
                                 .requestMatchers("/api/admin/**")
                                 .hasRole("ADMIN")
+                                .requestMatchers("/api/staff/**")
+                                .hasAnyRole("CENTER_STAFF", "STAFF", "ADMIN")
                                 .anyRequest()
                                 .authenticated()
                 )

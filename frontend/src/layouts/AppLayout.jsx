@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useStaffNotifications } from "../hooks/useStaffNotifications";
 import {
   Activity,
+  AlertCircle,
   Bell,
   CalendarDays,
   Car,
@@ -91,6 +93,16 @@ function AppLayout({ children }) {
   const userRole = session.user?.role;
   const isAdmin = userRole === "ADMIN";
   const isStaff = userRole === "STAFF" || userRole === "CENTER_STAFF";
+
+  const { unreadCount, latestToast, dismissToast } = useStaffNotifications(isStaff);
+
+  useEffect(() => {
+    if (!latestToast) return;
+    const timer = setTimeout(() => {
+      dismissToast();
+    }, 7500);
+    return () => clearTimeout(timer);
+  }, [latestToast, dismissToast]);
 
   const navigationItems = isAdmin
     ? adminNavigationItems
@@ -223,24 +235,38 @@ function AppLayout({ children }) {
                     const active =
                       isActive || (isVehicleSection && isVehicleRoute);
 
+                    const isNotificationSection = label === "Notifications";
+
                     return (
                       <>
-                        <Icon
-                          size={16}
-                          className={
-                            active ? "text-[#0261F3]" : "text-slate-500"
-                          }
-                        />
-                        {!isCollapsed && (
-                          <span
+                        <div className="relative flex items-center justify-center">
+                          <Icon
+                            size={16}
                             className={
-                              active
-                                ? "text-sm font-semibold text-[#0261F3]"
-                                : "text-sm font-medium text-slate-600"
+                              active ? "text-[#0261F3]" : "text-slate-500"
                             }
-                          >
-                            {label}
-                          </span>
+                          />
+                          {isCollapsed && isNotificationSection && isStaff && unreadCount > 0 && (
+                            <span className="absolute -top-1.5 -right-1.5 h-2 w-2 rounded-full bg-[#0261F3]" />
+                          )}
+                        </div>
+                        {!isCollapsed && (
+                          <div className="flex flex-1 items-center justify-between">
+                            <span
+                              className={
+                                active
+                                  ? "text-sm font-semibold text-[#0261F3]"
+                                  : "text-sm font-medium text-slate-600"
+                              }
+                            >
+                              {label}
+                            </span>
+                            {isNotificationSection && isStaff && unreadCount > 0 && (
+                              <span className="rounded-full bg-[#0261F3] px-2 py-0.5 text-[11px] font-bold text-white shadow-sm">
+                                {unreadCount}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </>
                     );
@@ -288,6 +314,105 @@ function AppLayout({ children }) {
       <main className="min-w-0 flex-1 overflow-y-auto bg-[#F3F8FF]">
         <div className="h-full min-h-full p-8">{children}</div>
       </main>
+
+      {/* Real-time floating toast alert for staff */}
+      {latestToast && (() => {
+        const isCancelledToast = latestToast.type === "SERVICE_REQUEST_CANCELLED";
+        return (
+          <div className="fixed bottom-6 right-6 z-50 max-w-md animate-in slide-in-from-bottom-5 duration-300">
+            <div
+              className={`flex items-start gap-3.5 rounded-2xl border bg-white p-4 shadow-2xl ${
+                isCancelledToast ? "border-red-200" : "border-blue-200"
+              }`}
+            >
+              <div
+                className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                  isCancelledToast
+                    ? "bg-red-50 text-red-600"
+                    : "bg-blue-50 text-[#0261F3]"
+                }`}
+              >
+                {isCancelledToast ? <AlertCircle size={20} /> : <Bell size={20} />}
+                <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
+                  <span
+                    className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${
+                      isCancelledToast ? "bg-red-400" : "bg-blue-400"
+                    }`}
+                  ></span>
+                  <span
+                    className={`relative inline-flex h-3 w-3 rounded-full ${
+                      isCancelledToast ? "bg-red-600" : "bg-[#0261F3]"
+                    }`}
+                  ></span>
+                </span>
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p
+                    className={`text-xs font-bold uppercase tracking-wider ${
+                      isCancelledToast ? "text-red-600" : "text-[#0261F3]"
+                    }`}
+                  >
+                    {latestToast.title || (isCancelledToast ? "Request Cancelled" : "New Service Request")}
+                  </p>
+                  {latestToast.referenceCode && (
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-700">
+                      {latestToast.referenceCode}
+                    </span>
+                  )}
+                  {isCancelledToast && (
+                    <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-red-700">
+                      Cancelled
+                    </span>
+                  )}
+                </div>
+
+                <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                  {latestToast.message}
+                </p>
+
+                <div className="mt-2.5 flex items-center gap-2">
+                  {latestToast.referenceId ? (
+                    <Link
+                      to={`/staff/service-requests/${latestToast.referenceId}`}
+                      onClick={dismissToast}
+                      className="inline-flex items-center gap-1 rounded-lg bg-[#0261F3] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0256D6]"
+                    >
+                      View Request
+                    </Link>
+                  ) : (
+                    <Link
+                      to={ROUTES.STAFF_NOTIFICATIONS}
+                      onClick={dismissToast}
+                      className="inline-flex items-center gap-1 rounded-lg bg-[#0261F3] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0256D6]"
+                    >
+                      View Notifications
+                    </Link>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={dismissToast}
+                    className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={dismissToast}
+                className="text-slate-400 transition hover:text-slate-600"
+                aria-label="Dismiss alert"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 backdrop-blur-sm">
